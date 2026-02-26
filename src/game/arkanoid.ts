@@ -82,7 +82,7 @@ export class ArkanoidPhase {
   init() {
     const speed = BALL.baseSpeed + this.state.level * BALL.speedPerLevel;
     this.paddle = createPaddle();
-    this.balls = [createBall(CANVAS_W / 2, CANVAS_H - 60, speed)];
+    this.balls = [createBall(CANVAS_W / 2, CANVAS_H - 120, speed)];
     this.powerups = [];
     this.lasers = [];
     this.homingMissiles = [];
@@ -327,7 +327,7 @@ export class ArkanoidPhase {
               return;
             }
             const spd = BALL.baseSpeed + this.state.level * BALL.speedPerLevel;
-            this.balls.push(createBall(this.paddle.x + this.paddle.w / 2, this.paddle.y - 20, spd));
+            this.balls.push(createBall(this.paddle.x + this.paddle.w / 2, this.paddle.y - 30, spd));
           }
         }
       }
@@ -335,7 +335,7 @@ export class ArkanoidPhase {
   }
 
   private checkPaddleBounce(b: BallState, ballIdx: number): 'bounced' | 'removed' | null {
-    if (b.y < this.paddle.y - 5 || b.y > this.paddle.y + this.paddle.h) return null;
+    if (b.y < this.paddle.y - 10 || b.y > this.paddle.y + this.paddle.h) return null;
 
     // Triple-decker: check each segment
     if (this.paddle.morphType === 'triple') {
@@ -387,12 +387,12 @@ export class ArkanoidPhase {
 
     b.vx = bounce.vx * morphMod;
     b.vy = -Math.abs(b.vy);
-    b.y = this.paddle.y - 5;
+    b.y = this.paddle.y - 10;
 
     // Boomerang trick shot: apex hit gives speed boost
     if (this.paddle.morphType === 'boomerang') {
       const hitCenter = Math.abs(b.x - (paddleX + paddleW / 2));
-      if (hitCenter < 20) {
+      if (hitCenter < 40) {
         b.vx *= 1.3;
         b.vy *= 1.2;
         this.fx.spawn(b.x, b.y, COLORS.teal, 8);
@@ -472,7 +472,7 @@ export class ArkanoidPhase {
       }
 
       // Breach check
-      if (br.y + br.h > this.paddle.y - 20) {
+      if (br.y + br.h > this.paddle.y - 40) {
         return 'breach';
       }
 
@@ -675,7 +675,7 @@ export class ArkanoidPhase {
     // Freeze bricks in the beam's path
     for (const br of this.bricks) {
       const beamX = this.paddle.x + this.paddle.w / 2;
-      if (Math.abs(br.x + br.w / 2 - beamX) < 12 && br.y < this.paddle.y) {
+      if (Math.abs(br.x + br.w / 2 - beamX) < 20 && br.y < this.paddle.y) {
         br.frozen = true;
         br.frozenTimer = WEAPONS.iceBeam.freezeDurationFrames;
         this.fx.spawn(br.x + br.w / 2, br.y + br.h / 2, COLORS.cyan, 20);
@@ -1181,14 +1181,27 @@ export class ArkanoidPhase {
     // Paddle
     drawPaddle(renderer, this.paddle, this.state.combo.multiplier);
 
-    // Active weapon indicator
+    // Active weapon indicator (glassmorphism style from DynamicBoxes)
     if (this.activeWeapon !== 'none') {
-      ctx.fillStyle = COLORS.white;
-      ctx.font = "12px 'Poiret One', cursive";
+      const weaponColors: Record<string, string> = {
+        laser: COLORS.red, flamethrower: COLORS.orange, ice: COLORS.cyan, homing: COLORS.green,
+      };
+      const wColor = weaponColors[this.activeWeapon] || COLORS.white;
+      ctx.fillStyle = 'rgba(10, 14, 39, 0.7)';
+      ctx.fillRect(15, CANVAS_H - 60, 180, 45);
+      ctx.strokeStyle = wColor;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(15, CANVAS_H - 60, 180, 45);
+      ctx.fillStyle = wColor;
+      ctx.shadowColor = wColor;
+      ctx.shadowBlur = 10;
+      ctx.font = "bold 20px 'Poiret One', cursive";
       ctx.textAlign = 'left';
-      ctx.fillText(`[${this.activeWeapon.toUpperCase()}]`, 10, CANVAS_H - 15);
+      ctx.fillText(`[${this.activeWeapon.toUpperCase()}]`, 25, CANVAS_H - 32);
+      ctx.shadowBlur = 0;
       if (this.activeWeapon === 'homing') {
-        ctx.fillText(`AMMO: ${this.homingAmmo}`, 10, CANVAS_H - 30);
+        ctx.font = "16px 'Poiret One', cursive";
+        ctx.fillText(`AMMO: ${this.homingAmmo}`, 25, CANVAS_H - 15);
       }
     }
 
@@ -1196,7 +1209,7 @@ export class ArkanoidPhase {
     if (this.widenTimer > 0) {
       ctx.fillStyle = 'rgba(0, 212, 255, 0.3)';
       const timerWidth = (this.widenTimer / POWERUP.widenDuration) * this.paddle.w;
-      ctx.fillRect(this.paddle.x, this.paddle.y + this.paddle.h, timerWidth, 3);
+      ctx.fillRect(this.paddle.x, this.paddle.y + this.paddle.h + 2, timerWidth, 5);
     }
   }
 }

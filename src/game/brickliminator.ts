@@ -440,11 +440,11 @@ export class BricklominatorPhase {
     // Current shape preview (inside turret)
     const currentShape = TETROMINOES[t.currentShapeIdx];
     ctx.fillStyle = currentShape.color;
-    const previewSize = 8;
+    const previewSize = 14;
     for (const [dr, dc] of currentShape.cells) {
       ctx.fillRect(
         t.x + (dc - 1.5) * previewSize,
-        t.y + (dr - 0.5) * previewSize - 5,
+        t.y + (dr - 0.5) * previewSize - 8,
         previewSize - 1, previewSize - 1,
       );
     }
@@ -453,11 +453,11 @@ export class BricklominatorPhase {
     const nextShape = TETROMINOES[t.nextShapeIdx];
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = nextShape.color;
-    const npSize = 5;
+    const npSize = 9;
     for (const [dr, dc] of nextShape.cells) {
       ctx.fillRect(
-        t.x + 40 + dc * npSize,
-        t.y - 10 + dr * npSize,
+        t.x + 70 + dc * npSize,
+        t.y - 15 + dr * npSize,
         npSize - 1, npSize - 1,
       );
     }
@@ -465,8 +465,8 @@ export class BricklominatorPhase {
 
     // "NEXT" label
     ctx.fillStyle = COLORS.white;
-    ctx.font = "10px 'Poiret One', cursive";
+    ctx.font = "16px 'Poiret One', cursive";
     ctx.textAlign = 'center';
-    ctx.fillText('NEXT', t.x + 45, t.y - 18);
+    ctx.fillText('NEXT', t.x + 80, t.y - 28);
   }
 }
