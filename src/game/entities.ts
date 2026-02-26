@@ -493,7 +493,7 @@ export function drawBrick(r: Renderer, b: BrickState) {
   const ctx = r.ctx;
 
   // Breathing pulse (subtle scale oscillation from DynamicBoxes)
-  const breathe = Math.sin(Date.now() * 0.003 + b.x * 0.01) * 0.02;
+  const breathe = Math.sin(Date.now() * 0.005 + b.x * 0.02 + b.y * 0.015) * 0.04;
   const bx = b.x - b.w * breathe * 0.5;
   const by = b.y - b.h * breathe * 0.5;
   const bw = b.w * (1 + breathe);

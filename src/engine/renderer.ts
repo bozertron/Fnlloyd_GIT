@@ -149,7 +149,7 @@ export class Renderer {
 
     // Game layer: motion blur via semi-transparent overlay instead of full clear
     if (this.motionBlur) {
-      this.gameCtx.fillStyle = 'rgba(10, 14, 39, 0.15)';
+      this.gameCtx.fillStyle = 'rgba(10, 14, 39, 0.85)';
       this.gameCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     } else {
       this.gameCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);

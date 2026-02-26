@@ -3,7 +3,7 @@
 
 import { GAME, SCORING, COMBO, CANVAS_W, CANVAS_H } from '../data/constants';
 
-export type GamePhase = 'START' | 'ARKANOID' | 'TRANSITION' | 'BRICKLIMINATOR' | 'GAMEOVER';
+export type GamePhase = 'START' | 'ARKANOID' | 'TRANSITION' | 'BRICKLIMINATOR' | 'CITY_DEFENSE' | 'GAMEOVER';
 
 export interface ComboState {
   count: number;
