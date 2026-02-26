@@ -531,7 +531,7 @@ export interface FxParticle {
 export class FxPool {
   particles: FxParticle[] = [];
 
-  spawn(x: number, y: number, color: string, count = 10, spread = 10) {
+  spawn(x: number, y: number, color: string, count = 10, spread = 15) {
     for (let i = 0; i < count; i++) {
       this.particles.push({
         x, y,
@@ -540,7 +540,7 @@ export class FxPool {
         color,
         life: 1.0,
         decay: Math.random() * 0.05 + 0.02,
-        size: 3,
+        size: 4 + Math.random() * 2,
       });
     }
   }
@@ -549,17 +549,17 @@ export class FxPool {
     for (let i = 0; i < count; i++) {
       this.particles.push({
         x, y,
-        vx: dirX * (0.5 + Math.random()) + (Math.random() - 0.5) * 3,
-        vy: dirY * (0.5 + Math.random()) + (Math.random() - 0.5) * 3,
+        vx: dirX * (0.5 + Math.random()) + (Math.random() - 0.5) * 4,
+        vy: dirY * (0.5 + Math.random()) + (Math.random() - 0.5) * 4,
         color,
         life: 1.0,
         decay: Math.random() * 0.05 + 0.02,
-        size: 3,
+        size: 4 + Math.random() * 2,
       });
     }
   }
 
-  spawnExplosion(x: number, y: number, color: string, count = 30, radius = 15) {
+  spawnExplosion(x: number, y: number, color: string, count = 30, radius = 25) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * radius;
@@ -570,7 +570,7 @@ export class FxPool {
         color,
         life: 1.0,
         decay: Math.random() * 0.03 + 0.01,
-        size: 2 + Math.random() * 3,
+        size: 3 + Math.random() * 4,
       });
     }
   }
@@ -582,8 +582,17 @@ export class FxPool {
       p.vy += 0.1;
       if (p.life <= 0) { this.particles.splice(i, 1); continue; }
       ctx.globalAlpha = p.life;
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x, p.y, p.size, p.size);
+
+      // Radial gradient particles (from DynamicBoxes aesthetic)
+      const r = p.size * 1.5;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      grad.addColorStop(0, p.color);
+      grad.addColorStop(0.6, p.color);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1.0;
   }

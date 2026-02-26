@@ -2,8 +2,8 @@
 // Synthwave Art Deco palette, physics tuning, game balance
 
 // --- DISPLAY ---
-export const CANVAS_W = 900;
-export const CANVAS_H = 700;
+export const CANVAS_W = 1920;
+export const CANVAS_H = 1080;
 
 // --- SYNTHWAVE ART DECO PALETTE ---
 export const COLORS = {
@@ -42,12 +42,12 @@ export const ROW_COLORS = [
 
 // --- PADDLE (SPACESHIP) ---
 export const PADDLE = {
-  baseWidth: 100,
-  height: 18,
-  cockpitWidth: 24,
-  cockpitHeight: 10,
-  maxWidth: 250,
-  yOffset: 40,          // distance from bottom
+  baseWidth: 280,
+  height: 36,
+  cockpitWidth: 48,
+  cockpitHeight: 20,
+  maxWidth: 500,
+  yOffset: 80,          // distance from bottom
   morphDuration: 500,   // ms for morph animation
   morphCooldownMs: 1000,
   smoothLerp: 0.3,     // paddle follow mouse lerp factor
@@ -65,18 +65,18 @@ export interface MorphDef {
 }
 
 export const MORPH_DEFS: Record<MorphType, MorphDef> = {
-  standard:   { width: 100, height: 18, bounceModifier: 1.0, unlockLevel: 0, description: 'Standard Ship' },
-  boomerang:  { width: 120, height: 18, bounceModifier: 1.1, unlockLevel: 3, description: 'V-Shape Trick Shot' },
-  triple:     { width: 30,  height: 18, bounceModifier: 1.0, unlockLevel: 6, description: 'Triple-Decker' },
-  concave:    { width: 110, height: 18, bounceModifier: 1.0, unlockLevel: 9, description: 'Catch & Charge' },
-  politician: { width: 80,  height: 18, bounceModifier: 0.8, unlockLevel: 0, description: 'The Politician' },
+  standard:   { width: 280, height: 36, bounceModifier: 1.0, unlockLevel: 0, description: 'Standard Ship' },
+  boomerang:  { width: 320, height: 36, bounceModifier: 1.1, unlockLevel: 3, description: 'V-Shape Trick Shot' },
+  triple:     { width: 60,  height: 36, bounceModifier: 1.0, unlockLevel: 6, description: 'Triple-Decker' },
+  concave:    { width: 300, height: 36, bounceModifier: 1.0, unlockLevel: 9, description: 'Catch & Charge' },
+  politician: { width: 200, height: 36, bounceModifier: 0.8, unlockLevel: 0, description: 'The Politician' },
 } as const;
 
-// Triple-decker segments: 3 segments of 30px with 15px gaps
+// Triple-decker segments: 3 segments of 60px with 30px gaps
 export const TRIPLE_DECKER = {
-  segmentWidth: 30,
-  gap: 15,
-  positions: [-45, 0, 45], // center offsets for each segment
+  segmentWidth: 60,
+  gap: 30,
+  positions: [-90, 0, 90], // center offsets for each segment
 } as const;
 
 // Concave dish catch+charge
@@ -90,10 +90,10 @@ export const POLITICIAN = {
   invincibleChance: 0.10,
   invincibleDurationMs: 5000,
   ultraWideChance: 0.30,
-  ultraWideWidth: 150,
+  ultraWideWidth: 400,
   ultraWideDurationMs: 2000,
   shrinkChance: 0.60,
-  shrinkWidth: 20,
+  shrinkWidth: 50,
   shrinkDurationMs: 1000,
   behaviorRate: 0.01,  // 1% per frame
   shimmerSpeed: 0.005,
@@ -101,14 +101,14 @@ export const POLITICIAN = {
 
 // --- BALL PHYSICS ---
 export const BALL = {
-  radius: 6,
-  baseSpeed: 4,
-  speedPerLevel: 0.3,
-  maxSpeed: 12,
-  minVx: 1.5,           // prevent vertical-only bounces
-  hitAngleSpread: 7,    // max vx from paddle hit position
+  radius: 12,
+  baseSpeed: 6,
+  speedPerLevel: 0.4,
+  maxSpeed: 18,
+  minVx: 2.5,           // prevent vertical-only bounces
+  hitAngleSpread: 12,   // max vx from paddle hit position
   paddleVelocityInfluence: 0.1,
-  paddleVelocityClamp: 0.3,
+  paddleVelocityClamp: 0.5,
   collisionFriction: 0.95,
 } as const;
 
@@ -116,7 +116,7 @@ export const BALL = {
 export const BALL_ABILITIES = {
   blackhole: {
     pullStrength: 0.5,
-    pullRadius: 150,
+    pullRadius: 300,
     ballPullFactor: 0.5,
     ballPullRadiusMult: 1.5,
   },
@@ -140,20 +140,34 @@ export const BALL_ABILITIES = {
   },
   disco: {
     hueSpeed: 100,
-    particleChance: 0.1,
+    particleChance: 0.15,
   },
   crystal: {
     phaseAlpha: 0.3,
   },
 } as const;
 
+// --- BALL TYPE RADII (unique sizes per type) ---
+export const BALL_RADII: Record<BallType, number> = {
+  standard:   12,
+  disco:      22,     // BIG flashy disco ball
+  basketball: 18,
+  crystal:    11,
+  blackhole:  16,
+  split:      10,
+  ghost:      12,
+  boomerang:  10,
+  inflatable: 12,     // grows dynamically via inflatableScale
+  fireball:   14,
+};
+
 // --- BRICKS ---
 export const BRICK = {
-  width: 70,
-  height: 20,
-  padding: 10,
-  topOffset: 80,
-  baseCols: 10,
+  width: 150,
+  height: 40,
+  padding: 12,
+  topOffset: 120,
+  baseCols: 11,
   baseRows: 5,
   maxRows: 8,
   descentBase: 0.15,
@@ -164,8 +178,8 @@ export const BRICK = {
 
 // --- POWER-UPS ---
 export const POWERUP = {
-  fallSpeed: 2.5,
-  radius: 10,
+  fallSpeed: 3.5,
+  radius: 18,
   popGravity: 500,       // power-up drop gravity (px/s²)
   popInitialVy: -100,    // initial upward pop velocity
   widenDuration: 600,    // frames (10s @ 60fps)
@@ -203,7 +217,7 @@ export const POWERUP_DEFS: Record<PowerUpType, { color: string; label: string; r
 export const WEAPONS = {
   laser: {
     cooldownMs: 500,
-    beamWidth: 4,
+    beamWidth: 6,
     beamPersistMs: 500,
     scoreOnDestroy: 100,
   },
@@ -213,7 +227,7 @@ export const WEAPONS = {
     coneWidthFactor: 0.4,
     fireStackBaseDamage: 50,
     scoreOnDestroy: 80,
-    particlesPerFrame: 5,
+    particlesPerFrame: 8,
   },
   iceBeam: {
     cooldownMs: 1000,
@@ -221,26 +235,26 @@ export const WEAPONS = {
     beamPersistMs: 800,
     freezeDurationFrames: 120,  // 2 seconds at 60fps
     ballSlowFactor: 0.3,
-    minBallSpeed: 2,
+    minBallSpeed: 3,
   },
   homing: {
-    speed: 5,
+    speed: 7,
     turnRate: 0.08,
     lifetimeFrames: 480,  // 8 seconds at 60fps
-    explosionRadius: 40,
+    explosionRadius: 80,
     scorePerBrick: 120,
     maxAmmo: 10,
     smokeChance: 0.5,
   },
   bankerBomb: {
-    descentSpeed: 3,
-    hoverAmplitude: 3,
+    descentSpeed: 4,
+    hoverAmplitude: 4,
     pauseFrames: 120,     // 2 seconds at 60fps
     explosionRadius: CANVAS_W / 5,
     scorePerBrick: 50,
     expandSpeed: 0.15,
-    particleBurst: 100,
-    shakeIntensity: 15,
+    particleBurst: 150,
+    shakeIntensity: 20,
   },
 } as const;
 
@@ -272,7 +286,7 @@ export const SPECIAL_CHARS = {
   },
   banker: {
     spawnChance: 0.05,      // 5% on brick destroy
-    eatRadius: 150,
+    eatRadius: 300,
     eatStaggerMs: 100,
     explosionRadius: CANVAS_W / 5,
     scorePerEaten: 50,
@@ -282,13 +296,13 @@ export const SPECIAL_CHARS = {
 
 // --- BRICKLIMINATOR ---
 export const BRICKLIMINATOR = {
-  gridW: 15,
+  gridW: 18,
   gridH: 12,
-  cellSize: 40,
-  brickHalfSize: 20,    // bricks are half a tetris square
-  turretRadius: 30,
-  aimLength: 120,        // aim line length from turret
-  shapeSpeed: 8,         // pixels per frame for launched shapes
+  cellSize: 70,
+  brickHalfSize: 35,    // bricks are half a tetris square
+  turretRadius: 50,
+  aimLength: 200,        // aim line length from turret
+  shapeSpeed: 12,        // pixels per frame for launched shapes
   slowdownFactor: 0.1,   // hit brick slows to 1/10
   waveSpeed: 60,         // frames between enemy advances (base)
   waveSpeedMin: 20,
@@ -321,33 +335,33 @@ export const COMBO = {
 // --- FNLLOYD PARTICLE SYSTEM ---
 export const FNLLOYD_PARTICLES = {
   count: 12000,          // GPU compute target (placeholder uses fewer)
-  placeholderCount: 200, // CPU fallback until model loaded
+  placeholderCount: 300, // CPU fallback until model loaded (more for bigger screen)
   baseColor: [1.0, 0.75, 0.07, 1.0] as [number, number, number, number],   // Electric Gold
   glowColor: [0.0, 0.83, 1.0, 1.0] as [number, number, number, number],    // Neon Cyan
-  particleSize: 0.12,
+  particleSize: 0.2,
   breatheSpeed: 0.005,
-  breatheAmount: 5,
+  breatheAmount: 8,
   springForce: 0.1,
   damping: 0.8,
 } as const;
 
-// Bone regions for particle distribution
+// Bone regions for particle distribution (scaled for 1920x1080)
 export const FNLLOYD_BONES = {
-  head:     { x: 0, y: -30, radius: 10, count: 1500, color: 'gold' },
-  torso:    { x: 0, y: -10, radius: 14, count: 3000, color: 'cyan' },
-  leftArm:  { x: -18, y: -8, radius: 5, count: 1200, color: 'purple' },
-  rightArm: { x: 18,  y: -8, radius: 5, count: 1200, color: 'purple' },
-  leftLeg:  { x: -8,  y: 12, radius: 6, count: 1500, color: 'cyan' },
-  rightLeg: { x: 8,   y: 12, radius: 6, count: 1500, color: 'cyan' },
-  aura:     { x: 0,   y: -5, radius: 32, count: 2100, color: 'gold' },
+  head:     { x: 0, y: -60, radius: 20, count: 1500, color: 'gold' },
+  torso:    { x: 0, y: -20, radius: 28, count: 3000, color: 'cyan' },
+  leftArm:  { x: -36, y: -16, radius: 10, count: 1200, color: 'purple' },
+  rightArm: { x: 36,  y: -16, radius: 10, count: 1200, color: 'purple' },
+  leftLeg:  { x: -16,  y: 24, radius: 12, count: 1500, color: 'cyan' },
+  rightLeg: { x: 16,   y: 24, radius: 12, count: 1500, color: 'cyan' },
+  aura:     { x: 0,   y: -10, radius: 64, count: 2100, color: 'gold' },
 } as const;
 
 // Wave interference config for Fnlloyd idle animation
 export const FNLLOYD_WAVES = {
-  source1: { x: -20, y: 0 },
-  source2: { x: 20,  y: 0 },
+  source1: { x: -40, y: 0 },
+  source2: { x: 40,  y: 0 },
   frequency: 0.1,
-  amplitude: 2,
+  amplitude: 4,
   speed: 2,
 } as const;
 

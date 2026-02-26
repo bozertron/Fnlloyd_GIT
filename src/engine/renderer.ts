@@ -136,14 +136,24 @@ export class Renderer {
     }
   }
 
+  // Motion blur toggle (semi-transparent clear from DynamicBoxes)
+  motionBlur = true;
+
   // --- FRAME RENDERING ---
   beginFrame() {
     this.updateShake();
 
-    // Clear Canvas2D layers
+    // Background: always full clear
     this.bgCtx.fillStyle = COLORS.bg;
     this.bgCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    this.gameCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Game layer: motion blur via semi-transparent overlay instead of full clear
+    if (this.motionBlur) {
+      this.gameCtx.fillStyle = 'rgba(10, 14, 39, 0.15)';
+      this.gameCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    } else {
+      this.gameCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    }
   }
 
   applyCamera() {
@@ -218,12 +228,12 @@ export class Renderer {
     const c = this.bgCtx;
     c.fillStyle = COLORS.white;
     const t = time * 0.05;
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 250; i++) {
       const x = (Math.sin(i * 123.45) * CANVAS_W + t * (i % 3 + 1)) % CANVAS_W;
       const y = Math.cos(i * 321.12) * CANVAS_H;
       const absY = y < 0 ? y + CANVAS_H : y;
       c.globalAlpha = (i % 3 + 1) * 0.2;
-      const size = (i % 5 === 0) ? 3 : 2;
+      const size = (i % 5 === 0) ? 4 : 2;
       c.fillRect(Math.abs(x), absY, size, size);
     }
     c.globalAlpha = 1.0;
@@ -232,8 +242,8 @@ export class Renderer {
   drawEarth(healthPercent: number, time: number) {
     const c = this.bgCtx;
     const cx = CANVAS_W / 2;
-    const cy = CANVAS_H + 60;
-    const r = 120;
+    const cy = CANVAS_H + 80;
+    const r = 200;
 
     // Atmosphere glow
     const glowSize = healthPercent > 50 ? 40 : 20;
@@ -282,8 +292,8 @@ export class Renderer {
       this.shootingStarTimer = 0;
       this.shootingStars.push({
         x: Math.random() * CANVAS_W, y: Math.random() * CANVAS_H * 0.4,
-        vx: 3 + Math.random() * 4, vy: 1 + Math.random() * 2,
-        life: 1.0, length: 20 + Math.random() * 40,
+        vx: 5 + Math.random() * 6, vy: 1.5 + Math.random() * 3,
+        life: 1.0, length: 40 + Math.random() * 60,
       });
     }
 

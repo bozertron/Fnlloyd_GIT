@@ -8,8 +8,8 @@ import { quipEngine } from '../data/personality';
 
 export class FnlloydCharacter {
   particles: GPUParticleSystem;
-  private targetX = 450;
-  private targetY = 660;
+  private targetX = 960;
+  private targetY = 960;
   private time = 0;
 
   // Quip tracking
