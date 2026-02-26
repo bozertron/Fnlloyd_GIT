@@ -59,10 +59,26 @@ function initInput() {
   canvas.addEventListener('mousedown', e => {
     e.preventDefault();
     input.mouseDown = true;
-    if (state.phase === 'ARKANOID') arkanoid.fireInput();
+    if (state.phase === 'ARKANOID') {
+      arkanoid.fireInput();
+      // Release caught ball on click
+      arkanoid.releaseCaughtBall();
+    }
+    // Flamethrower: activate on hold
+    if (state.phase === 'ARKANOID' && arkanoid.activeWeapon === 'flamethrower') {
+      arkanoid.flamethrower.active = true;
+      audio.flamethrowerStart();
+    }
   });
 
-  canvas.addEventListener('mouseup', () => { input.mouseDown = false; });
+  canvas.addEventListener('mouseup', () => {
+    input.mouseDown = false;
+    // Flamethrower: deactivate on release
+    if (arkanoid.flamethrower.active) {
+      arkanoid.flamethrower.active = false;
+      audio.flamethrowerStop();
+    }
+  });
 
   // Touch support
   canvas.addEventListener('touchmove', e => {
@@ -82,18 +98,36 @@ function initInput() {
       input.mouseX = (e.touches[0].clientX - rect.left) * (CANVAS_W / rect.width);
       input.mouseY = (e.touches[0].clientY - rect.top) * (CANVAS_H / rect.height);
     }
-    if (state.phase === 'ARKANOID') arkanoid.fireInput();
+    if (state.phase === 'ARKANOID') {
+      arkanoid.fireInput();
+      arkanoid.releaseCaughtBall();
+    }
   }, { passive: false });
 
   canvas.addEventListener('touchend', e => {
     e.preventDefault();
     input.mouseDown = false;
+    if (arkanoid.flamethrower.active) {
+      arkanoid.flamethrower.active = false;
+    }
   }, { passive: false });
 
-  // Keyboard: Q/E to cycle Brickliminator shapes
+  // Keyboard controls
   document.addEventListener('keydown', e => {
+    // Q/E to cycle Brickliminator shapes
     if (state.phase === 'BRICKLIMINATOR' && (e.key === 'q' || e.key === 'e' || e.key === 'Q' || e.key === 'E')) {
       brickliminator.cycleShape();
+    }
+
+    // Weapon keybindings (Arkanoid phase)
+    if (state.phase === 'ARKANOID') {
+      switch (e.key) {
+        case ' ': // Space = fire current weapon
+          e.preventDefault();
+          arkanoid.fireInput();
+          arkanoid.releaseCaughtBall();
+          break;
+      }
     }
   });
 }
@@ -181,12 +215,13 @@ function gameLoop(now: number) {
   // End frame
   renderer.endFrame();
 
-  // Music intensity based on game state
+  // Music intensity based on game state + tie to Fnlloyd particles
   if (state.phase === 'ARKANOID' || state.phase === 'BRICKLIMINATOR') {
     const intensity = state.earthHealth < 50 ? 0.8
       : state.combo.multiplier > 3 ? 0.6
       : 0.3;
     audio.setIntensity(intensity);
+    fnlloyd.setMusicIntensity(intensity);
   }
 }
 
@@ -200,6 +235,14 @@ async function boot() {
     gpuReady ? renderer.device : null,
     gpuReady ? renderer.format : null,
   );
+
+  // Try to load glTF model for particle positions
+  try {
+    // Use the Idle pose as default particle positions
+    await fnlloyd.loadModel('Reference Files/assets/199d6a92-dc02-4efd-b31a-9b2a70209014.gltf');
+  } catch (err) {
+    console.warn('glTF model load failed, using procedural silhouette:', err);
+  }
 
   // Init physics
   physics.init();

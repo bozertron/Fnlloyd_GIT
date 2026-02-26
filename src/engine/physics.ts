@@ -1,41 +1,28 @@
 // !Fnlloyd Physics Engine
-// Wraps Rapier2D WASM for rigid body simulation
-// Falls back to custom physics if Rapier fails to load
+// Custom physics for ball/paddle/brick collisions
+// Includes: proper side detection, collision friction, paddle velocity influence
 
 import { CANVAS_W, CANVAS_H, BALL, PADDLE } from '../data/constants';
 
-export interface PhysicsBody {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  w: number;
-  h: number;
-}
-
 export interface CollisionResult {
   hit: boolean;
+  side: 'top' | 'bottom' | 'left' | 'right' | 'none';
   normal: { x: number; y: number };
   overlap: number;
 }
 
-// Simple AABB collision (used directly — no Rapier dependency for MVP)
-// Rapier integration deferred until the reference JS files with advanced
-// ball types are committed; current physics matches the existing game exactly.
 export class PhysicsEngine {
   gravity = 0;
 
   init() {
-    // Rapier WASM init would go here
-    // For now, using custom physics matching the reference implementation
+    // Rapier WASM deferred; custom physics matches reference implementation
   }
 
-  // --- BALL vs RECT collision ---
+  // --- BALL vs RECT collision with side detection ---
   ballVsRect(
     bx: number, by: number, br: number,
     rx: number, ry: number, rw: number, rh: number,
   ): CollisionResult {
-    // Closest point on rect to ball center
     const closestX = Math.max(rx, Math.min(bx, rx + rw));
     const closestY = Math.max(ry, Math.min(by, ry + rh));
     const dx = bx - closestX;
@@ -46,9 +33,23 @@ export class PhysicsEngine {
       const overlap = br - dist;
       const nx = dist > 0 ? dx / dist : 0;
       const ny = dist > 0 ? dy / dist : -1;
-      return { hit: true, normal: { x: nx, y: ny }, overlap };
+
+      // Determine side based on normalized overlaps
+      const overlapX = (bx < rx + rw / 2) ? (bx + br - rx) : (rx + rw - bx + br);
+      const overlapY = (by < ry + rh / 2) ? (by + br - ry) : (ry + rh - by + br);
+      const normOX = overlapX / rw;
+      const normOY = overlapY / rh;
+
+      let side: CollisionResult['side'];
+      if (normOX < normOY) {
+        side = bx < rx + rw / 2 ? 'left' : 'right';
+      } else {
+        side = by < ry + rh / 2 ? 'top' : 'bottom';
+      }
+
+      return { hit: true, side, normal: { x: nx, y: ny }, overlap };
     }
-    return { hit: false, normal: { x: 0, y: 0 }, overlap: 0 };
+    return { hit: false, side: 'none', normal: { x: 0, y: 0 }, overlap: 0 };
   }
 
   // --- POINT in RECT ---
@@ -56,17 +57,51 @@ export class PhysicsEngine {
     return px > rx && px < rx + rw && py > ry && py < ry + rh;
   }
 
-  // --- Ball bounce off paddle ---
-  paddleBounce(ballX: number, paddleX: number, paddleW: number): { vx: number; vy: number } {
+  // --- Ball bounce off paddle with velocity influence ---
+  paddleBounce(
+    ballX: number,
+    paddleX: number,
+    paddleW: number,
+    paddleVelocityX: number,
+  ): { vx: number; vy: number } {
     const hitPos = (ballX - (paddleX + paddleW / 2)) / (paddleW / 2);
     let vx = hitPos * BALL.hitAngleSpread;
+
+    // Add paddle velocity influence
+    const velInfluence = Math.max(-BALL.paddleVelocityClamp,
+      Math.min(BALL.paddleVelocityClamp, paddleVelocityX * BALL.paddleVelocityInfluence));
+    vx += velInfluence;
 
     // Prevent vertical-only bounce
     if (Math.abs(vx) < BALL.minVx) {
       vx = vx >= 0 ? BALL.minVx : -BALL.minVx;
     }
 
-    return { vx, vy: -1 }; // caller normalizes speed
+    return { vx, vy: -1 };
+  }
+
+  // --- Apply collision friction to non-reflected axis ---
+  applyFriction(vx: number, vy: number, side: CollisionResult['side']): { vx: number; vy: number } {
+    const friction = BALL.collisionFriction;
+    if (side === 'left' || side === 'right') {
+      return { vx, vy: vy * friction };
+    } else {
+      return { vx: vx * friction, vy };
+    }
+  }
+
+  // --- Reflect ball off collision surface ---
+  reflectBall(
+    vx: number, vy: number,
+    side: CollisionResult['side'],
+  ): { vx: number; vy: number } {
+    switch (side) {
+      case 'top':    return { vx, vy: -Math.abs(vy) };
+      case 'bottom': return { vx, vy: Math.abs(vy) };
+      case 'left':   return { vx: -Math.abs(vx), vy };
+      case 'right':  return { vx: Math.abs(vx), vy };
+      default:       return { vx, vy: -vy }; // fallback
+    }
   }
 
   // --- Wall bounds check ---
@@ -88,7 +123,6 @@ export class PhysicsEngine {
     x1: number, y1: number, x2: number, y2: number,
     rx: number, ry: number, rw: number, rh: number,
   ): boolean {
-    // Check if line segment intersects AABB
     const dx = x2 - x1;
     const dy = y2 - y1;
 
@@ -126,5 +160,23 @@ export class PhysicsEngine {
     const mag = Math.sqrt(vx * vx + vy * vy);
     if (mag === 0) return { vx: 0, vy: -speed };
     return { vx: (vx / mag) * speed, vy: (vy / mag) * speed };
+  }
+
+  // --- Check if point is within cone (for flamethrower) ---
+  pointInCone(
+    px: number, py: number,
+    coneOriginX: number, coneOriginY: number,
+    coneLength: number, coneWidthFactor: number,
+  ): boolean {
+    const dy = coneOriginY - py;
+    if (dy < 0 || dy > coneLength) return false;
+    const widthAtDist = dy * coneWidthFactor;
+    const dx = Math.abs(px - coneOriginX);
+    return dx < widthAtDist / 2;
+  }
+
+  // --- Check if point is within radius (for explosions, banker, homing) ---
+  pointInRadius(px: number, py: number, cx: number, cy: number, radius: number): boolean {
+    return this.distance(px, py, cx, cy) <= radius;
   }
 }
