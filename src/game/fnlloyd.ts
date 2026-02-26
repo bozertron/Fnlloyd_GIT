@@ -1,11 +1,10 @@
 // !Fnlloyd Character Controller
 // Manages the particle character, animations, and quip triggers
 // Uses GPU particles when available, CPU fallback otherwise
+// Reactive particle body: wave interference idle, game-event reactions
 
-import { GPUParticleSystem } from '../engine/gpu-particles';
-import { quipEngine, type QuipTrigger } from '../data/personality';
-import type { Renderer } from '../engine/renderer';
-import type { GameState } from './state';
+import { GPUParticleSystem, type ParticleReaction } from '../engine/gpu-particles';
+import { quipEngine } from '../data/personality';
 
 export class FnlloydCharacter {
   particles: GPUParticleSystem;
@@ -26,6 +25,10 @@ export class FnlloydCharacter {
     quipEngine.init();
   }
 
+  async loadModel(gltfUrl: string) {
+    await this.particles.loadModel(gltfUrl);
+  }
+
   setTarget(x: number, y: number) {
     this.targetX = x;
     this.targetY = y;
@@ -40,69 +43,142 @@ export class FnlloydCharacter {
     this.particles.render(ctx, renderPass, comboGlow);
   }
 
-  // --- QUIP TRIGGERS ---
-  // Call these from game logic to trigger appropriate voice lines
+  setMusicIntensity(intensity: number) {
+    this.particles.setMusicIntensity(intensity);
+  }
+
+  private react(type: ParticleReaction, intensity = 1.0) {
+    this.particles.react(type, intensity);
+  }
+
+  // --- QUIP TRIGGERS + PARTICLE REACTIONS ---
 
   onGoodShot() {
     this.bricksDestroyedSinceQuip++;
     if (this.bricksDestroyedSinceQuip >= 3) {
       quipEngine.trigger('good_shot');
+      this.react('pulse', 0.5);
       this.bricksDestroyedSinceQuip = 0;
     }
   }
 
-  onNearMiss() { quipEngine.trigger('near_miss'); }
-  onMissedBall() { quipEngine.trigger('missed_ball'); }
+  onNearMiss() {
+    quipEngine.trigger('near_miss');
+    this.react('flicker', 0.7);
+  }
+
+  onMissedBall() {
+    quipEngine.trigger('missed_ball');
+    this.react('explode', 0.3);
+  }
 
   onPowerUp(isRare: boolean) {
     quipEngine.trigger(isRare ? 'rare_powerup' : 'powerup_collect');
+    this.react(isRare ? 'celebrate' : 'glow', isRare ? 1.0 : 0.6);
   }
 
-  onMultiBall() { quipEngine.trigger('multiball'); }
+  onMultiBall() {
+    quipEngine.trigger('multiball');
+    this.react('pulse', 0.8);
+  }
 
   onCombo(count: number) {
     if (count >= 10 && this.lastComboTrigger < 10) {
       quipEngine.trigger('combo_10');
+      this.react('celebrate', 1.0);
     } else if (count >= 5 && this.lastComboTrigger < 5) {
       quipEngine.trigger('combo_5');
+      this.react('glow', 0.8);
     } else if (count >= 3 && this.lastComboTrigger < 3) {
       quipEngine.trigger('combo_3');
+      this.react('pulse', 0.6);
     } else if (count >= 2 && this.lastComboTrigger < 2) {
       quipEngine.trigger('combo_2');
+      this.react('pulse', 0.3);
     }
     this.lastComboTrigger = count;
   }
 
-  onComboReset() {
-    this.lastComboTrigger = 0;
+  onComboReset() { this.lastComboTrigger = 0; }
+
+  onLastBrick() {
+    quipEngine.trigger('last_brick');
+    this.react('glow', 1.0);
   }
 
-  onLastBrick() { quipEngine.trigger('last_brick'); }
-  onLevelStart() { quipEngine.trigger('level_start'); }
-  onLevelComplete() { quipEngine.trigger('level_complete'); }
+  onLevelStart() {
+    quipEngine.trigger('level_start');
+    this.react('pulse', 0.4);
+  }
 
-  onBossAppears() { quipEngine.trigger('boss_appears'); }
-  onBossDefeated() { quipEngine.trigger('boss_finish'); }
+  onLevelComplete() {
+    quipEngine.trigger('level_complete');
+    this.react('celebrate', 1.0);
+  }
 
-  onBricklimStart() { quipEngine.trigger('bricklim_start'); }
+  onBossAppears() {
+    quipEngine.trigger('boss_appears');
+    this.react('flicker', 1.0);
+  }
+
+  onBossDefeated() {
+    quipEngine.trigger('boss_finish');
+    this.react('celebrate', 1.0);
+  }
+
+  onBricklimStart() {
+    quipEngine.trigger('bricklim_start');
+    this.react('explode', 0.5);
+  }
+
   onLineClear(combo: number) {
-    if (combo >= 3) quipEngine.trigger('bricklim_triple');
-    else if (combo >= 2) quipEngine.trigger('bricklim_double');
-    else quipEngine.trigger('bricklim_single');
+    if (combo >= 3) {
+      quipEngine.trigger('bricklim_triple');
+      this.react('celebrate', 1.0);
+    } else if (combo >= 2) {
+      quipEngine.trigger('bricklim_double');
+      this.react('glow', 0.8);
+    } else {
+      quipEngine.trigger('bricklim_single');
+      this.react('pulse', 0.5);
+    }
   }
 
   onEarthDamaged(health: number) {
-    if (health <= 25) quipEngine.trigger('earth_critical');
-    else quipEngine.trigger('earth_damaged');
+    if (health <= 25) {
+      quipEngine.trigger('earth_critical');
+      this.react('flicker', 1.0);
+    } else {
+      quipEngine.trigger('earth_damaged');
+      this.react('flicker', 0.5);
+    }
   }
 
-  onLifeLost() { quipEngine.trigger('life_lost'); }
-  onExtraLife() { quipEngine.trigger('extra_life'); }
-  onGameOver() { quipEngine.trigger('game_over'); }
+  onLifeLost() {
+    quipEngine.trigger('life_lost');
+    this.react('explode', 0.8);
+  }
+
+  onExtraLife() {
+    quipEngine.trigger('extra_life');
+    this.react('celebrate', 0.7);
+  }
+
+  onGameOver() {
+    quipEngine.trigger('game_over');
+    this.react('explode', 1.0);
+  }
 
   onLowHealth(health: number) {
-    if (health <= 50 && health > 25) quipEngine.trigger('low_health');
+    if (health <= 50 && health > 25) {
+      quipEngine.trigger('low_health');
+      this.react('flicker', 0.3);
+    }
   }
+
+  onWeaponFire() { this.react('pulse', 0.3); }
+  onSpecialCharacter() { this.react('glow', 0.6); }
+  onAutoWin() { this.react('celebrate', 1.0); }
 
   checkIdle() { quipEngine.checkIdle(); }
 }
