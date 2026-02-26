@@ -13,7 +13,7 @@ export interface BrickDef {
 
 function makeBrick(r: number, c: number, hpBonus: number): BrickDef {
   let type: BrickDef['type'] = 'standard';
-  let color = COLORS.purple;
+  let color: string = COLORS.purple;
   let hp = 1 + hpBonus;
 
   // Top row = reinforced

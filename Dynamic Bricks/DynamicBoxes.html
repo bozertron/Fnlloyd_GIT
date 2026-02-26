@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek Breaker - Ultimate Arkanoid</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .game-container {
+            position: relative;
+            width: 1000px;
+            height: 700px;
+            overflow: hidden;
+        }
+        
+        canvas {
+            border-radius: 12px;
+            box-shadow: 0 0 60px rgba(0, 180, 255, 0.4);
+            background: #0a0a2a;
+        }
+        
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 18px;
+            text-shadow: 0 0 15px rgba(0, 220, 255, 0.8);
+            z-index: 100;
+            background: rgba(10, 10, 40, 0.8);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 2px solid #00ccff;
+            backdrop-filter: blur(5px);
+        }
+        
+        .weapon-display {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .weapon {
+            padding: 10px 18px;
+            background: rgba(0, 40, 80, 0.7);
+            border-radius: 20px;
+            border: 2px solid;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            position: relative;
+            min-width: 140px;
+        }
+        
+        .weapon-basic { border-color: #ffaa00; }
+        .weapon-laser { border-color: #ff3366; }
+        .weapon-missile { border-color: #00ff99; }
+        .weapon-plasma { border-color: #9966ff; }
+        
+        .weapon.active {
+            background: rgba(0, 80, 160, 0.9);
+            box-shadow: 0 0 25px;
+            transform: translateY(-2px);
+        }
+        
+        .weapon.active.weapon-basic { box-shadow: 0 0 25px #ffaa00; }
+        .weapon.active.weapon-laser { box-shadow: 0 0 25px #ff3366; }
+        .weapon.active.weapon-missile { box-shadow: 0 0 25px #00ff99; }
+        .weapon.active.weapon-plasma { box-shadow: 0 0 25px #9966ff; }
+        
+        .ammo-count {
+            margin-left: auto;
+            font-size: 16px;
+            color: #ffff00;
+            font-weight: bold;
+        }
+        
+        .start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #001122 0%, #002244 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.8s ease;
+        }
+        
+        .shark-container {
+            position: relative;
+            width: 400px;
+            height: 300px;
+            margin-bottom: 40px;
+        }
+        
+        .shark-body {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0066cc 0%, #00aaff 50%, #0066cc 100%);
+            clip-path: polygon(0% 40%, 15% 0%, 85% 0%, 100% 40%, 85% 70%, 70% 100%, 30% 100%, 15% 70%);
+            box-shadow: 0 0 80px rgba(0, 150, 255, 0.6);
+            animation: shark-float 4s ease-in-out infinite;
+        }
+        
+        .shark-mouth {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 160px;
+            height: 80px;
+            background: #ff3366;
+            clip-path: polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%);
+            border: 4px solid #ff0033;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .shark-mouth:hover {
+            background: #ff5588;
+            transform: translate(-50%, -50%) scale(1.05);
+            box-shadow: 0 0 40px rgba(255, 0, 51, 0.8);
+        }
+        
+        .start-button {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 0, 51, 0.8);
+            letter-spacing: 2px;
+        }
+        
+        .shark-eye {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: white;
+            border-radius: 50%;
+            top: 25%;
+        }
+        
+        .shark-eye.left { left: 30%; }
+        .shark-eye.right { right: 30%; }
+        
+        .shark-eye::after {
+            content: '';
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #0066cc;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .instructions-panel {
+            background: rgba(0, 20, 40, 0.9);
+            padding: 25px;
+            border-radius: 20px;
+            border: 3px solid #00ccff;
+            margin-top: 30px;
+            max-width: 600px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            position: relative;
+        }
+        
+        .instructions-panel::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 20px solid #00ccff;
+        }
+        
+        .instructions-title {
+            color: #00ffaa;
+            font-size: 24px;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px #00ffaa;
+        }
+        
+        .instructions-list {
+            list-style: none;
+            font-size: 18px;
+            line-height: 1.8;
+        }
+        
+        .instructions-list li {
+            margin: 10px 0;
+            padding: 8px;
+            background: rgba(0, 100, 200, 0.2);
+            border-radius: 10px;
+        }
+        
+        .key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 1px solid #00ccff;
+            margin: 0 5px;
+            font-family: monospace;
+        }
+        
+        .game-over, .level-complete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 10, 30, 0.98);
+            padding: 50px;
+            border-radius: 25px;
+            text-align: center;
+            border: 4px solid;
+            box-shadow: 0 0 80px;
+            display: none;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            min-width: 500px;
+        }
+        
+        .game-over { border-color: #ff3366; box-shadow: 0 0 80px rgba(255, 51, 102, 0.6); }
+        .level-complete { border-color: #33ff66; box-shadow: 0 0 80px rgba(51, 255, 102, 0.6); }
+        
+        .game-over h1, .level-complete h1 {
+            font-size: 56px;
+            margin-bottom: 20px;
+        }
+        
+        .game-over h1 { color: #ff3366; text-shadow: 0 0 30px #ff3366; }
+        .level-complete h1 { color: #33ff66; text-shadow: 0 0 30px #33ff66; }
+        
+        button {
+            background: linear-gradient(45deg, #00aaff, #0066cc);
+            color: white;
+            border: none;
+            padding: 18px 36px;
+            font-size: 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            margin-top: 25px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 30px #00aaff;
+        }
+        
+        .ammo-low {
+            animation: ammo-pulse 0.8s infinite;
+        }
+        
+        @keyframes shark-float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(0.5deg); }
+        }
+        
+        @keyframes ammo-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .easter-egg-notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            border: 3px solid gold;
+            color: gold;
+            font-size: 24px;
+            text-align: center;
+            z-index: 2000;
+            display: none;
+            animation: gold-pulse 2s infinite;
+        }
+        
+        @keyframes gold-pulse {
+            0%, 100% { box-shadow: 0 0 30px gold; }
+            50% { box-shadow: 0 0 60px gold; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="hud">
+            <div class="score">SCORE: <span id="score" style="color:#ffff00">0</span></div>
+            <div class="weapon-display">
+                <div class="weapon weapon-basic" id="weapon-basic">
+                    🔥 Basic <span class="ammo-count" id="ammo-basic">∞</span>
+                </div>
+                <div class="weapon weapon-laser" id="weapon-laser">
+                    💥 Laser <span class="ammo-count" id="ammo-laser">5</span>
+                </div>
+                <div class="weapon weapon-missile" id="weapon-missile">
+                    🚀 Missile <span class="ammo-count" id="ammo-missile">3</span>
+                </div>
+                <div class="weapon weapon-plasma" id="weapon-plasma">
+                    ⚡ Plasma <span class="ammo-count" id="ammo-plasma">2</span>
+                </div>
+            </div>
+            <div class="level">LEVEL: <span id="level" style="color:#00ffaa">1</span></div>
+        </div>
+        
+        <div class="start-screen" id="startScreen">
+            <div class="shark-container">
+                <div class="shark-body"></div>
+                <div class="shark-eye left"></div>
+                <div class="shark-eye right"></div>
+                <div class="shark-mouth" id="startButton">
+                    <div class="start-button">START</div>
+                </div>
+            </div>
+            
+            <div class="instructions-panel">
+                <h2 class="instructions-title">🎮 DEEPSEEK BREAKER 🎮</h2>
+                <ul class="instructions-list">
+                    <li><span class="key">MOUSE</span> Move Paddle</li>
+                    <li><span class="key">SPACEBAR</span> Fire Active Weapon</li>
+                    <li><span class="key">MOUSE WHEEL</span> or <span class="key">BOTH MOUSE BUTTONS</span> Change Weapon</li>
+                    <li>Each weapon has limited ammo! Use wisely!</li>
+                    <li>Find Easter Eggs in special bricks! 👀</li>
+                    <li>Game speed increases 1% each level</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h1>GAME OVER</h1>
+            <p style="font-size: 24px; margin: 20px 0;">Final Score: <span id="finalScore" style="color:#ffff00">0</span></p>
+            <p style="font-size: 18px; color: #00ccff;">DeepSeek is hungry for more bricks!</p>
+            <button onclick="restartGame()">FEED THE SHARK AGAIN</button>
+        </div>
+        
+        <div class="level-complete" id="levelComplete">
+            <h1>LEVEL COMPLETE!</h1>
+            <p style="font-size: 24px; margin: 20px 0;">Score: <span id="levelScore" style="color:#ffff00">0</span></p>
+            <p style="font-size: 18px; color: #00ccff;">The shark grows stronger!</p>
+            <button onclick="nextLevel()">NEXT LEVEL</button>
+        </div>
+        
+        <div class="easter-egg-notification" id="easterEggNotification">
+            🎉 EASTER EGG ACTIVATED! 🎉
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1000;
+        canvas.height = 700;
+
+        // Game variables
+        let score = 0;
+        let level = 1;
+        let lives = 3;
+        let gameRunning = false;
+        let currentWeapon = 0;
+        const weapons = ['basic', 'laser', 'missile', 'plasma'];
+        
+        // Weapon ammo
+        let weaponAmmo = {
+            basic: Infinity,
+            laser: 5,
+            missile: 3,
+            plasma: 2
+        };
+        
+        // Base speeds for level scaling
+        const baseBallSpeed = 5;
+        const baseSpeedMultiplier = 1.0;
+        
+        let balls = [];
+        let particles = [];
+        let powerUps = [];
+        let lasers = [];
+        let missiles = [];
+        let plasmaBalls = [];
+        let specialEffects = [];
+        
+        // Easter egg tracking
+        let easterEggsFound = 0;
+        let easterEggActive = false;
+
+        // Paddle
+        const paddle = {
+            x: canvas.width / 2 - 75,
+            y: canvas.height - 40,
+            width: 150,
+            height: 18,
+            speed: 12,
+            color: '#00ccff'
+        };
+
+        // Ball class
+        class Ball {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 10;
+                this.speedX = baseBallSpeed * (Math.random() > 0.5 ? 1 : -1);
+                this.speedY = -baseBallSpeed;
+                this.color = '#ffffff';
+                this.trail = [];
+                this.maxTrail = 8;
+                this.glow = true;
+            }
+
+            update() {
+                const speedMultiplier = baseSpeedMultiplier * Math.pow(1.01, level - 1);
+                
+                // Add to trail
+                this.trail.push({x: this.x, y: this.y});
+                if (this.trail.length > this.maxTrail) {
+                    this.trail.shift();
+                }
+
+                // Update position with level speed scaling
+                this.x += this.speedX * speedMultiplier;
+                this.y += this.speedY * speedMultiplier;
+
+                // Wall collision
+                if (this.x <= this.radius || this.x >= canvas.width - this.radius) {
+                    this.speedX = -this.speedX;
+                    createParticles(this.x, this.y, 8, '#ffffff', 0.8);
+                }
+                if (this.y <= this.radius) {
+                    this.speedY = -this.speedY;
+                    createParticles(this.x, this.y, 8, '#ffffff', 0.8);
+                }
+
+                // Bottom boundary
+                if (this.y >= canvas.height) {
+                    return false;
+                }
+
+                // Paddle collision
+                if (this.y + this.radius >= paddle.y && 
+                    this.y - this.radius <= paddle.y + paddle.height &&
+                    this.x >= paddle.x && 
+                    this.x <= paddle.x + paddle.width) {
+                    
+                    const hitPos = (this.x - paddle.x) / paddle.width;
+                    this.speedX = 10 * speedMultiplier * (hitPos - 0.5);
+                    this.speedY = -Math.abs(this.speedY) * speedMultiplier;
+                    createParticles(this.x, paddle.y, 15, paddle.color, 1);
+                }
+                return true;
+            }
+
+            draw() {
+                // Draw trail with glow
+                this.trail.forEach((pos, i) => {
+                    const alpha = i / this.trail.length;
+                    const radius = this.radius * alpha;
+                    
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+                    
+                    const gradient = ctx.createRadialGradient(
+                        pos.x, pos.y, 0,
+                        pos.x, pos.y, radius
+                    );
+                    gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.7})`);
+                    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                });
+
+                // Draw ball with glow
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                
+                if (this.glow) {
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 20;
+                }
+                
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Inner glow
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fill();
+            }
+        }
+
+        // Special Brick types for Easter Eggs
+        class SpecialBrick {
+            constructor(x, y, width, height, type) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.type = type;
+                this.health = 2;
+                this.maxHealth = 2;
+                this.pulse = 0;
+                this.rotation = 0;
+                
+                // Set colors and properties based on type
+                switch(type) {
+                    case 'emoji':
+                        this.color = '#ffff00';
+                        this.emoji = '🎯';
+                        break;
+                    case 'rainbow':
+                        this.color = '#ff3366';
+                        this.rainbowOffset = Math.random() * 100;
+                        break;
+                    case 'portal':
+                        this.color = '#9966ff';
+                        break;
+                    case 'deepseek':
+                        this.color = '#0066cc';
+                        this.emoji = '🦈';
+                        break;
+                }
+            }
+
+            update() {
+                this.pulse = Math.sin(Date.now() * 0.005) * 0.2 + 0.8;
+                this.rotation += 0.02;
+            }
+
+            draw() {
+                const drawX = this.x + this.width / 2;
+                const drawY = this.y + this.height / 2;
+                
+                ctx.save();
+                ctx.translate(drawX, drawY);
+                ctx.scale(this.pulse, this.pulse);
+                
+                switch(this.type) {
+                    case 'emoji':
+                        this.drawEmoji();
+                        break;
+                    case 'rainbow':
+                        this.drawRainbow();
+                        break;
+                    case 'portal':
+                        this.drawPortal();
+                        break;
+                    case 'deepseek':
+                        this.drawDeepSeek();
+                        break;
+                }
+                
+                ctx.restore();
+            }
+
+            drawEmoji() {
+                // Background
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                
+                // Emoji
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.emoji, 0, 0);
+                
+                // Border
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(-this.width/2, -this.height/2, this.width, this.height);
+            }
+
+            drawRainbow() {
+                const time = Date.now() * 0.001 + this.rainbowOffset;
+                const colors = ['#ff0000', '#ff9900', '#ffff00', '#00ff00', '#0099ff', '#6633ff'];
+                
+                // Draw rainbow stripes
+                for (let i = 0; i < colors.length; i++) {
+                    ctx.fillStyle = colors[(i + Math.floor(time * 10)) % colors.length];
+                    ctx.fillRect(
+                        -this.width/2,
+                        -this.height/2 + (this.height / colors.length) * i,
+                        this.width,
+                        this.height / colors.length
+                    );
+                }
+                
+                // Animated border
+                ctx.strokeStyle = colors[Math.floor(time * 5) % colors.length];
+                ctx.lineWidth = 4;
+                ctx.strokeRect(-this.width/2, -this.height/2, this.width, this.height);
+            }
+
+            drawPortal() {
+                ctx.rotate(this.rotation);
+                
+                // Portal effect
+                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.width/2);
+                gradient.addColorStop(0, '#9966ff');
+                gradient.addColorStop(0.5, '#6633cc');
+                gradient.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.width/2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Swirling effect
+                for (let i = 0; i < 8; i++) {
+                    ctx.rotate(Math.PI / 4);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(Date.now() * 0.001 + i) * 0.2})`;
+                    ctx.fillRect(-this.width/4, -this.height/20, this.width/2, this.height/10);
+                }
+            }
+
+            drawDeepSeek() {
+                // Shark shape
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(-this.width/2, -this.height/4);
+                ctx.lineTo(this.width/2, -this.height/4);
+                ctx.lineTo(this.width/3, this.height/4);
+                ctx.lineTo(-this.width/3, this.height/4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Fin
+                ctx.fillRect(this.width/4, -this.height/3, this.width/6, this.height/2);
+                
+                // Emoji
+                ctx.font = 'bold 20px Arial';
+                ctx.fillText(this.emoji, 0, 0);
+            }
+        }
+
+        // Brick class
+        class Brick {
+            constructor(x, y, width, height, color, health = 1, special = null) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.color = color;
+                this.health = health;
+                this.maxHealth = health;
+                this.special = special;
+                this.pulse = 0;
+            }
+
+            update() {
+                this.pulse = Math.sin(Date.now() * 0.003) * 0.1 + 0.9;
+            }
+
+            draw() {
+                if (this.special) {
+                    this.special.update();
+                    this.special.draw();
+                    return;
+                }
+
+                const drawWidth = this.width * this.pulse;
+                const drawHeight = this.height * this.pulse;
+                const offsetX = (this.width - drawWidth) / 2;
+                const offsetY = (this.height - drawHeight) / 2;
+
+                // Main brick with gradient
+                const gradient = ctx.createLinearGradient(
+                    this.x, this.y,
+                    this.x + this.width, this.y + this.height
+                );
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, this.color.replace(')', ', 0.8)'));
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(this.x + offsetX, this.y + offsetY, drawWidth, drawHeight);
+                
+                // 3D effect
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x + offsetX, this.y + offsetY, drawWidth, drawHeight);
+                
+                // Inner highlight
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(this.x + offsetX + 2, this.y + offsetY + 2, drawWidth - 4, drawHeight - 4);
+                
+                // Health indicator
+                if (this.maxHealth > 1) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.fillRect(
+                        this.x + offsetX + 4,
+                        this.y + offsetY + this.height - 8,
+                        (drawWidth - 8) * (this.health / this.maxHealth),
+                        4
+                    );
+                }
+                
+                // Glow for damaged bricks
+                if (this.health < this.maxHealth) {
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 15;
+                    ctx.strokeRect(this.x + offsetX, this.y + offsetY, drawWidth, drawHeight);
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        // Create bricks with Easter eggs
+        let bricks = [];
+        function createBricks() {
+            bricks = [];
+            const rows = 6;
+            const cols = 10;
+            const brickWidth = 80;
+            const brickHeight = 30;
+            const padding = 6;
+            const offsetX = (canvas.width - (cols * (brickWidth + padding))) / 2;
+            
+            const colors = ['#ff3366', '#ff9933', '#33ff66', '#3399ff', '#9966ff', '#ff66cc'];
+            
+            // Special brick positions for Easter eggs
+            const specialPositions = [];
+            for (let i = 0; i < 4; i++) {
+                specialPositions.push({
+                    row: Math.floor(Math.random() * rows),
+                    col: Math.floor(Math.random() * cols)
+                });
+            }
+            
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const health = Math.min(Math.floor(r / 2) + 1, 3);
+                    let special = null;
+                    
+                    // Check if this position should have a special brick
+                    const isSpecial = specialPositions.some(pos => pos.row === r && pos.col === c);
+                    if (isSpecial) {
+                        const specialTypes = ['emoji', 'rainbow', 'portal', 'deepseek'];
+                        const type = specialTypes[Math.floor(Math.random() * specialTypes.length)];
+                        special = new SpecialBrick(0, 0, brickWidth, brickHeight, type);
+                    }
+                    
+                    const brick = new Brick(
+                        offsetX + c * (brickWidth + padding),
+                        80 + r * (brickHeight + padding),
+                        brickWidth,
+                        brickHeight,
+                        colors[r % colors.length],
+                        health,
+                        special
+                    );
+                    bricks.push(brick);
+                }
+            }
+        }
+
+        // Particle system
+        function createParticles(x, y, count, color, sizeMultiplier = 1) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    speedX: (Math.random() - 0.5) * 10,
+                    speedY: (Math.random() - 0.5) * 10,
+                    radius: Math.random() * 6 * sizeMultiplier + 2,
+                    color: color,
+                    life: 1.0,
+                    decay: 0.015 + Math.random() * 0.015
+                });
+            }
+        }
+
+        // Special effects for Easter eggs
+        function createEasterEggEffect(type, x, y) {
+            switch(type) {
+                case 'emoji':
+                    // Emoji explosion
+                    for (let i = 0; i < 20; i++) {
+                        const angle = (i / 20) * Math.PI * 2;
+                        const speed = 5 + Math.random() * 5;
+                        specialEffects.push({
+                            x: x,
+                            y: y,
+                            type: 'emoji',
+                            emoji: ['🎯', '🎮', '🔥', '💥', '✨', '⭐'][Math.floor(Math.random() * 6)],
+                            speedX: Math.cos(angle) * speed,
+                            speedY: Math.sin(angle) * speed,
+                            life: 1.0,
+                            decay: 0.02
+                        });
+                    }
+                    break;
+                    
+                case 'rainbow':
+                    // Rainbow wave
+                    for (let i = 0; i < 100; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 2 + Math.random() * 4;
+                        const colors = ['#ff0000', '#ff9900', '#ffff00', '#00ff00', '#0099ff', '#6633ff'];
+                        specialEffects.push({
+                            x: x,
+                            y: y,
+                            type: 'rainbow',
+                            color: colors[Math.floor(Math.random() * colors.length)],
+                            speedX: Math.cos(angle) * speed,
+                            speedY: Math.sin(angle) * speed,
+                            size: 3 + Math.random() * 4,
+                            life: 1.0,
+                            decay: 0.01
+                        });
+                    }
+                    break;
+                    
+                case 'portal':
+                    // Portal effect
+                    specialEffects.push({
+                        x: x,
+                        y: y,
+                        type: 'portal',
+                        size: 50,
+                        life: 2.0,
+                        decay: 0.01,
+                        rotation: 0
+                    });
+                    
+                    // Create mini balls from portal
+                    for (let i = 0; i < 5; i++) {
+                        const ball = new Ball(x, y);
+                        const angle = (i / 5) * Math.PI * 2;
+                        ball.speedX = Math.cos(angle) * 8;
+                        ball.speedY = Math.sin(angle) * 8;
+                        ball.color = '#9966ff';
+                        balls.push(ball);
+                    }
+                    break;
+                    
+                case 'deepseek':
+                    // Shark attack effect
+                    specialEffects.push({
+                        x: x,
+                        y: y,
+                        type: 'shark',
+                        size: 100,
+                        life: 1.5,
+                        decay: 0.01
+                    });
+                    
+                    // Bonus score
+                    score += 1000;
+                    document.getElementById('score').textContent = score;
+                    break;
+            }
+            
+            // Show notification
+            const notification = document.getElementById('easterEggNotification');
+            notification.style.display = 'block';
+            notification.textContent = `🎉 ${type.toUpperCase()} EASTER EGG FOUND! +${easterEggsFound * 500} POINTS 🎉`;
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 2000);
+        }
+
+        // Fire active weapon
+        function fireWeapon() {
+            if (!gameRunning) return;
+            
+            const weapon = weapons[currentWeapon];
+            
+            if (weaponAmmo[weapon] <= 0 && weapon !== 'basic') {
+                // No ammo - flash weapon display
+                const weaponEl = document.querySelector(`.weapon-${weapon}`);
+                weaponEl.classList.add('ammo-low');
+                setTimeout(() => weaponEl.classList.remove('ammo-low'), 500);
+                return;
+            }
+            
+            if (weapon !== 'basic') {
+                weaponAmmo[weapon]--;
+                updateAmmoDisplay();
+            }
+            
+            const ballX = paddle.x + paddle.width / 2;
+            const ballY = paddle.y - 20;
+            
+            switch(weapon) {
+                case 'laser':
+                    if (weaponAmmo.laser > 0) {
+                        lasers.push({
+                            x: ballX,
+                            y: 0,
+                            width: 6,
+                            height: canvas.height,
+                            color: '#ff3366',
+                            life: 0.5
+                        });
+                    }
+                    break;
+                    
+                case 'missile':
+                    if (weaponAmmo.missile > 0) {
+                        for (let i = 0; i < 3; i++) {
+                            setTimeout(() => {
+                                const missile = {
+                                    x: ballX + (Math.random() - 0.5) * 50,
+                                    y: ballY,
+                                    speedY: -8,
+                                    radius: 10,
+                                    color: '#00ff99',
+                                    trail: [],
+                                    explosion: false
+                                };
+                                missiles.push(missile);
+                            }, i * 100);
+                        }
+                    }
+                    break;
+                    
+                case 'plasma':
+                    if (weaponAmmo.plasma > 0) {
+                        for (let i = 0; i < 5; i++) {
+                            const plasma = {
+                                x: ballX,
+                                y: ballY,
+                                angle: (i / 5) * Math.PI * 2,
+                                speed: 4,
+                                radius: 15,
+                                color: '#9966ff',
+                                pulse: 0
+                            };
+                            plasmaBalls.push(plasma);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        // Check collisions
+        function checkCollisions() {
+            // Ball collisions with bricks
+            balls.forEach(ball => {
+                bricks.forEach((brick, brickIndex) => {
+                    if (ball.x + ball.radius > brick.x &&
+                        ball.x - ball.radius < brick.x + brick.width &&
+                        ball.y + ball.radius > brick.y &&
+                        ball.y - ball.radius < brick.y + brick.height) {
+                        
+                        brick.health--;
+                        score += 20 * (4 - brick.maxHealth + 1);
+                        document.getElementById('score').textContent = score;
+                        
+                        createParticles(ball.x, ball.y, 12, brick.color, 1.2);
+                        
+                        // Check for Easter egg brick
+                        if (brick.special && brick.health <= 0) {
+                            easterEggsFound++;
+                            createEasterEggEffect(brick.special.type, brick.x + brick.width/2, brick.y + brick.height/2);
+                            score += easterEggsFound * 500;
+                            document.getElementById('score').textContent = score;
+                        }
+                        
+                        if (brick.health <= 0) {
+                            bricks.splice(brickIndex, 1);
+                            score += 100;
+                            document.getElementById('score').textContent = score;
+                            
+                            // Chance to spawn power-up
+                            if (Math.random() < 0.25) {
+                                const powerUpTypes = [
+                                    { type: 'ammo', weapon: weapons[Math.floor(Math.random() * 3) + 1], color: '#ffff00' },
+                                    { type: 'life', color: '#33ff66' },
+                                    { type: 'expand', color: '#3399ff' }
+                                ];
+                                const powerUp = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+                                
+                                powerUps.push({
+                                    x: brick.x + brick.width / 2,
+                                    y: brick.y + brick.height / 2,
+                                    ...powerUp,
+                                    speed: 3
+                                });
+                            }
+                        }
+                        
+                        // Calculate reflection
+                        const dx = (ball.x - (brick.x + brick.width / 2)) / (brick.width / 2);
+                        const dy = (ball.y - (brick.y + brick.height / 2)) / (brick.height / 2);
+                        
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            ball.speedX = -ball.speedX;
+                        } else {
+                            ball.speedY = -ball.speedY;
+                        }
+                    }
+                });
+            });
+
+            // Weapon collisions with bricks
+            lasers.forEach((laser, laserIndex) => {
+                let hitBrick = false;
+                bricks.forEach((brick, brickIndex) => {
+                    if (laser.x >= brick.x && laser.x <= brick.x + brick.width) {
+                        brick.health = 0;
+                        bricks.splice(brickIndex, 1);
+                        score += 150;
+                        document.getElementById('score').textContent = score;
+                        createParticles(laser.x, brick.y + brick.height / 2, 15, laser.color, 1.5);
+                        hitBrick = true;
+                    }
+                });
+                if (hitBrick) lasers.splice(laserIndex, 1);
+            });
+
+            // Missile collisions
+            missiles.forEach((missile, missileIndex) => {
+                let exploded = false;
+                
+                bricks.forEach((brick, brickIndex) => {
+                    const dx = missile.x - (brick.x + brick.width / 2);
+                    const dy = missile.y - (brick.y + brick.height / 2);
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < 40) {
+                        // Explosion
+                        createParticles(missile.x, missile.y, 30, '#ff9900', 2);
+                        
+                        // Damage nearby bricks
+                        bricks.forEach((b, idx) => {
+                            const dist = Math.sqrt(
+                                Math.pow(missile.x - (b.x + b.width / 2), 2) +
+                                Math.pow(missile.y - (b.y + b.height / 2), 2)
+                            );
+                            if (dist < 120) {
+                                b.health--;
+                                if (b.health <= 0) {
+                                    bricks.splice(idx, 1);
+                                    score += 80;
+                                    document.getElementById('score').textContent = score;
+                                }
+                            }
+                        });
+                        
+                        exploded = true;
+                        missiles.splice(missileIndex, 1);
+                    }
+                });
+                
+                if (!exploded) {
+                    missile.y += missile.speedY;
+                    missile.trail.push({x: missile.x, y: missile.y});
+                    if (missile.trail.length > 10) missile.trail.shift();
+                    
+                    if (missile.y < 0) {
+                        missiles.splice(missileIndex, 1);
+                    }
+                }
+            });
+
+            // Plasma collisions
+            plasmaBalls.forEach((plasma, plasmaIndex) => {
+                plasma.x += Math.cos(plasma.angle) * plasma.speed;
+                plasma.y += Math.sin(plasma.angle) * plasma.speed;
+                plasma.pulse = Math.sin(Date.now() * 0.01) * 5;
+                
+                let hit = false;
+                bricks.forEach((brick, brickIndex) => {
+                    const dx = plasma.x - (brick.x + brick.width / 2);
+                    const dy = plasma.y - (brick.y + brick.height / 2);
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < plasma.radius + Math.max(brick.width, brick.height) / 2) {
+                        brick.health = 0;
+                        bricks.splice(brickIndex, 1);
+                        score += 100;
+                        document.getElementById('score').textContent = score;
+                        createParticles(plasma.x, plasma.y, 15, plasma.color, 1.3);
+                        hit = true;
+                    }
+                });
+                
+                if (hit || plasma.x < 0 || plasma.x > canvas.width || plasma.y < 0) {
+                    plasmaBalls.splice(plasmaIndex, 1);
+                }
+            });
+
+            // Power-up collection
+            powerUps.forEach((powerUp, index) => {
+                powerUp.y += powerUp.speed;
+                
+                if (powerUp.y > paddle.y &&
+                    powerUp.y < paddle.y + paddle.height &&
+                    powerUp.x > paddle.x &&
+                    powerUp.x < paddle.x + paddle.width) {
+                    
+                    switch(powerUp.type) {
+                        case 'ammo':
+                            weaponAmmo[powerUp.weapon] += 3;
+                            updateAmmoDisplay();
+                            break;
+                        case 'life':
+                            lives = Math.min(lives + 1, 5);
+                            break;
+                        case 'expand':
+                            paddle.width = Math.min(paddle.width + 40, 280);
+                            break;
+                    }
+                    
+                    createParticles(powerUp.x, powerUp.y, 20, powerUp.color, 1.5);
+                    powerUps.splice(index, 1);
+                } else if (powerUp.y > canvas.height) {
+                    powerUps.splice(index, 1);
+                }
+            });
+        }
+
+        // Update ammo display
+        function updateAmmoDisplay() {
+            document.getElementById('ammo-basic').textContent = weaponAmmo.basic === Infinity ? '∞' : weaponAmmo.basic;
+            document.getElementById('ammo-laser').textContent = weaponAmmo.laser;
+            document.getElementById('ammo-missile').textContent = weaponAmmo.missile;
+            document.getElementById('ammo-plasma').textContent = weaponAmmo.plasma;
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Clear canvas with fade effect
+            ctx.fillStyle = 'rgba(10, 10, 42, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.speedX;
+                p.y += p.speedY;
+                p.life -= p.decay;
+                
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+            
+            // Update special effects
+            for (let i = specialEffects.length - 1; i >= 0; i--) {
+                const effect = specialEffects[i];
+                effect.life -= effect.decay;
+                
+                if (effect.type === 'portal' || effect.type === 'shark') {
+                    effect.rotation = effect.rotation ? effect.rotation + 0.05 : 0;
+                } else {
+                    effect.x += effect.speedX;
+                    effect.y += effect.speedY;
+                }
+                
+                if (effect.life <= 0) {
+                    specialEffects.splice(i, 1);
+                }
+            }
+            
+            // Update paddle position
+            const rect = canvas.getBoundingClientRect();
+            paddle.x = mouseX - rect.left - paddle.width / 2;
+            paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
+            
+            // Update bricks
+            bricks.forEach(brick => brick.update());
+            
+            // Update and draw balls
+            for (let i = balls.length - 1; i >= 0; i--) {
+                if (!balls[i].update()) {
+                    balls.splice(i, 1);
+                    if (balls.length === 0) {
+                        lives--;
+                        if (lives <= 0) {
+                            gameOver();
+                        } else {
+                            balls.push(new Ball(paddle.x + paddle.width / 2, paddle.y - 20));
+                        }
+                    }
+                }
+                balls[i].draw();
+            }
+            
+            // Draw particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                
+                const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+                gradient.addColorStop(0, p.color);
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+            
+            // Draw special effects
+            specialEffects.forEach(effect => {
+                ctx.globalAlpha = effect.life;
+                
+                switch(effect.type) {
+                    case 'emoji':
+                        ctx.font = 'bold 20px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(effect.emoji, effect.x, effect.y);
+                        break;
+                        
+                    case 'rainbow':
+                        ctx.beginPath();
+                        ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                        ctx.fillStyle = effect.color;
+                        ctx.fill();
+                        break;
+                        
+                    case 'portal':
+                        ctx.save();
+                        ctx.translate(effect.x, effect.y);
+                        ctx.rotate(effect.rotation);
+                        
+                        const portalGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, effect.size);
+                        portalGradient.addColorStop(0, '#9966ff');
+                        portalGradient.addColorStop(0.7, '#6633cc');
+                        portalGradient.addColorStop(1, 'transparent');
+                        
+                        ctx.fillStyle = portalGradient;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, effect.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.restore();
+                        break;
+                        
+                    case 'shark':
+                        ctx.fillStyle = '#0066cc';
+                        ctx.beginPath();
+                        ctx.ellipse(effect.x, effect.y, effect.size/2, effect.size/4, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Fin
+                        ctx.fillRect(effect.x + effect.size/4, effect.y - effect.size/3, effect.size/8, effect.size/2);
+                        break;
+                }
+            });
+            ctx.globalAlpha = 1;
+            
+            // Draw weapons
+            lasers.forEach((laser, index) => {
+                ctx.globalAlpha = laser.life;
+                ctx.fillStyle = laser.color;
+                ctx.fillRect(laser.x - laser.width/2, laser.y, laser.width, laser.height);
+                ctx.globalAlpha = 1;
+                laser.life -= 0.02;
+                if (laser.life <= 0) lasers.splice(index, 1);
+            });
+            
+            missiles.forEach(missile => {
+                // Draw trail
+                missile.trail.forEach((pos, i) => {
+                    const alpha = i / missile.trail.length;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, missile.radius * alpha * 0.3, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 150, 0, ${alpha})`;
+                    ctx.fill();
+                });
+                
+                // Draw missile
+                ctx.beginPath();
+                ctx.arc(missile.x, missile.y, missile.radius, 0, Math.PI * 2);
+                ctx.fillStyle = missile.color;
+                ctx.fill();
+                
+                // Flame
+                ctx.beginPath();
+                ctx.moveTo(missile.x - 5, missile.y + 12);
+                ctx.lineTo(missile.x, missile.y + 18);
+                ctx.lineTo(missile.x + 5, missile.y + 12);
+                ctx.fillStyle = '#ff3300';
+                ctx.fill();
+            });
+            
+            plasmaBalls.forEach(plasma => {
+                const radius = plasma.radius + plasma.pulse;
+                ctx.beginPath();
+                ctx.arc(plasma.x, plasma.y, radius, 0, Math.PI * 2);
+                
+                const gradient = ctx.createRadialGradient(
+                    plasma.x, plasma.y, 0,
+                    plasma.x, plasma.y, radius
+                );
+                gradient.addColorStop(0, plasma.color);
+                gradient.addColorStop(0.7, plasma.color.replace(')', ', 0.5)'));
+                gradient.addColorStop(1, 'rgba(153, 102, 255, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                ctx.shadowColor = plasma.color;
+                ctx.shadowBlur = 25;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+            
+            // Draw bricks
+            bricks.forEach(brick => brick.draw());
+            
+            // Draw power-ups
+            powerUps.forEach(powerUp => {
+                ctx.fillStyle = powerUp.color;
+                ctx.beginPath();
+                ctx.arc(powerUp.x, powerUp.y, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowColor = powerUp.color;
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Icon
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                let icon = '?';
+                if (powerUp.type === 'ammo') icon = '⚡';
+                else if (powerUp.type === 'life') icon = '❤️';
+                else if (powerUp.type === 'expand') icon = '⬆️';
+                
+                ctx.fillText(icon, powerUp.x, powerUp.y);
+            });
+            
+            // Draw paddle with gradient
+            const paddleGradient = ctx.createLinearGradient(
+                paddle.x, paddle.y,
+                paddle.x, paddle.y + paddle.height
+            );
+            paddleGradient.addColorStop(0, paddle.color);
+            paddleGradient.addColorStop(1, '#0066cc');
+            
+            ctx.fillStyle = paddleGradient;
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+            
+            // Paddle glow
+            ctx.shadowColor = paddle.color;
+            ctx.shadowBlur = 25;
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+            ctx.shadowBlur = 0;
+            
+            // Check collisions
+            checkCollisions();
+            
+            // Check level completion
+            if (bricks.length === 0) {
+                levelComplete();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game
+        function startGame() {
+            document.getElementById('startScreen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('startScreen').style.display = 'none';
+                gameRunning = true;
+                gameLoop();
+            }, 800);
+        }
+
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        // Level complete
+        function levelComplete() {
+            gameRunning = false;
+            document.getElementById('levelScore').textContent = score;
+            document.getElementById('levelComplete').style.display = 'block';
+        }
+
+        // Restart game
+        function restartGame() {
+            score = 0;
+            level = 1;
+            lives = 3;
+            easterEggsFound = 0;
+            
+            weaponAmmo = {
+                basic: Infinity,
+                laser: 5,
+                missile: 3,
+                plasma: 2
+            };
+            
+            balls = [new Ball(paddle.x + paddle.width / 2, paddle.y - 20)];
+            bricks = [];
+            particles = [];
+            powerUps = [];
+            lasers = [];
+            missiles = [];
+            plasmaBalls = [];
+            specialEffects = [];
+            paddle.width = 150;
+            
+            document.getElementById('score').textContent = '0';
+            document.getElementById('level').textContent = '1';
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('levelComplete').style.display = 'none';
+            
+            updateAmmoDisplay();
+            createBricks();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        // Next level
+        function nextLevel() {
+            level++;
+            document.getElementById('level').textContent = level;
+            document.getElementById('levelComplete').style.display = 'none';
+            
+            // Refill some ammo
+            weaponAmmo.laser = Math.min(weaponAmmo.laser + 2, 8);
+            weaponAmmo.missile = Math.min(weaponAmmo.missile + 1, 5);
+            weaponAmmo.plasma = Math.min(weaponAmmo.plasma + 1, 4);
+            
+            balls = [new Ball(paddle.x + paddle.width / 2, paddle.y - 20)];
+            particles = [];
+            powerUps = [];
+            lasers = [];
+            missiles = [];
+            plasmaBalls = [];
+            specialEffects = [];
+            
+            updateAmmoDisplay();
+            createBricks();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        // Mouse movement
+        let mouseX = canvas.width / 2;
+        let mouseDown = { left: false, right: false };
+        
+        canvas.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+        });
+        
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) mouseDown.left = true;
+            if (e.button === 2) mouseDown.right = true;
+            
+            // Check for both buttons pressed
+            if (mouseDown.left && mouseDown.right) {
+                currentWeapon = (currentWeapon + 1) % weapons.length;
+                updateWeaponDisplay();
+                e.preventDefault();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 0) mouseDown.left = false;
+            if (e.button === 2) mouseDown.right = false;
+        });
+        
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // Mouse wheel for weapon change
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (e.deltaY > 0) {
+                currentWeapon = (currentWeapon + 1) % weapons.length;
+            } else {
+                currentWeapon = (currentWeapon - 1 + weapons.length) % weapons.length;
+            }
+            updateWeaponDisplay();
+        });
+        
+        // Spacebar to fire
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                fireWeapon();
+                e.preventDefault();
+            } else if (e.code === 'KeyR') {
+                restartGame();
+            }
+        });
+        
+        // Start button
+        document.getElementById('startButton').addEventListener('click', startGame);
+        
+        // Update weapon display
+        function updateWeaponDisplay() {
+            document.querySelectorAll('.weapon').forEach((el, index) => {
+                el.classList.toggle('active', index === currentWeapon);
+            });
+        }
+        
+        // Initialize
+        updateAmmoDisplay();
+        updateWeaponDisplay();
+        createBricks();
+    </script>
+</body>
+</html>

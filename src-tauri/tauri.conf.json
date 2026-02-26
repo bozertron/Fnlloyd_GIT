@@ -10,10 +10,9 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "title": "!Fnlloyd - Defend The Earth",
     "windows": [
       {
-        "title": "!Fnlloyd",
+        "title": "!Fnlloyd - Defend The Earth",
         "width": 940,
         "height": 760,
         "resizable": false,

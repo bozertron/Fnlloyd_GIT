@@ -66,7 +66,7 @@ export class BricklominatorPhase {
 
   // Wave management
   private tick = 0;
-  private waveSpeed = BRICKLIMINATOR.waveSpeed;
+  private waveSpeed: number = BRICKLIMINATOR.waveSpeed;
   private wavesSpawned = 0;
 
   // Line clear effects
