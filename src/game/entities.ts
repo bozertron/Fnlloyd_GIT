@@ -499,20 +499,35 @@ export function drawBrick(r: Renderer, b: BrickState) {
   const bw = b.w * (1 + breathe);
   const bh = b.h * (1 + breathe);
 
+  // Determine fill style based on state
+  let fillStyle = b.color;
+  let fillAlpha = b.hp === 1 ? 0.7 : 1.0;
+  let useGradient = false;
+
   if (b.flashTimer > 0) {
-    ctx.fillStyle = b.flashColor;
-    ctx.globalAlpha = 0.8;
+    fillStyle = b.flashColor;
+    fillAlpha = 0.8;
     b.flashTimer--;
   } else if (b.frozen) {
-    ctx.fillStyle = COLORS.cyan;
-    ctx.globalAlpha = 0.5;
+    fillStyle = COLORS.cyan;
+    fillAlpha = 0.5;
   } else if (b.fireDamageStacks > 0) {
-    ctx.fillStyle = COLORS.orange;
-    ctx.globalAlpha = 0.7 + Math.sin(Date.now() * 0.02) * 0.2;
+    fillStyle = COLORS.orange;
+    fillAlpha = 0.7 + Math.sin(Date.now() * 0.02) * 0.2;
   } else {
-    ctx.fillStyle = b.color;
-    ctx.globalAlpha = b.hp === 1 ? 0.7 : 1.0;
+    useGradient = true; // Use gradient for normal bricks (from DynamicBoxes)
   }
+
+  // Main brick with gradient (from DynamicBoxes)
+  if (useGradient) {
+    const gradient = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+    gradient.addColorStop(0, fillStyle);
+    gradient.addColorStop(1, fillStyle.replace(')', ', 0.8)').replace('rgb', 'rgba').replace('hsl', 'hsla'));
+    ctx.fillStyle = gradient;
+  } else {
+    ctx.fillStyle = fillStyle;
+  }
+  ctx.globalAlpha = fillAlpha;
 
   // Neon glow (double-draw from DynamicBoxes)
   ctx.shadowColor = b.color;
@@ -523,7 +538,7 @@ export function drawBrick(r: Renderer, b: BrickState) {
 
   // 3D bevel borders (outer bright, inner subtle — from DynamicBoxes)
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
   ctx.lineWidth = 1;
@@ -533,6 +548,13 @@ export function drawBrick(r: Renderer, b: BrickState) {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
   ctx.fillRect(bx + 2, by + 2, bw - 4, bh * 0.25);
 
+  // Health indicator bar at bottom (from DynamicBoxes)
+  if (b.maxHp > 1 && b.hp > 0) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fillRect(bx + 4, by + bh - 8, (bw - 8) * (b.hp / b.maxHp), 4);
+  }
+
+  // HP number display
   if (b.maxHp > 1 && b.hp > 0) {
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.font = "bold 16px 'Poiret One', cursive";
@@ -540,10 +562,19 @@ export function drawBrick(r: Renderer, b: BrickState) {
     ctx.fillText(String(Math.ceil(b.hp)), bx + bw / 2, by + bh / 2 + 5);
   }
 
+  // Fire damage stacks indicator
   if (b.fireDamageStacks > 0) {
     ctx.fillStyle = COLORS.red;
     const dotSize = Math.min(b.fireDamageStacks, 5) * 3;
     ctx.fillRect(bx + bw - dotSize - 3, by + 3, dotSize, 5);
+  }
+
+  // Glow for damaged bricks (from DynamicBoxes)
+  if (b.hp < b.maxHp) {
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 15;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.shadowBlur = 0;
   }
 
   ctx.globalAlpha = 1.0;
