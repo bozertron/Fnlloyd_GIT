@@ -171,187 +171,102 @@ export class Studio {
       this.overlay = document.createElement('div');
       this.overlay.id = 'fnlloyd-studio';
       Object.assign(this.overlay.style, {
-        position: 'fixed',
-        left: '0',
-        top: '0',
-        width: '100vw',
-        height: '100vh',
-        display: 'none', 
-        flexDirection: 'row',
-        background: '#050505', 
-        zIndex: '10002',
+        position: 'fixed', inset: '0',
+        display: 'none', flexDirection: 'row',
+        background: '#050505', zIndex: '10002',
         fontFamily: "'Poiret One', cursive",
-        // REMOVED: transform and contain that were causing WebKit clipping bugs
       });
 
-      // ── Viewport (left, takes remaining width)
+      // ── Viewport (takes remaining width between panels)
       const viewport = document.createElement('div');
       Object.assign(viewport.style, {
-        flex: '1', 
-        position: 'relative', 
-        overflow: 'hidden',
-        // CRITICAL: Flex items need explicit dimensions to prevent collapse
-        width: '100%',
-        height: '100%',
-        minWidth: '0',
-        minHeight: '0',
+        flex: '1', position: 'relative', overflow: 'hidden',
       });
 
       // Layer 0: particles.js div
-      try {
-        this.pjsDiv = document.createElement('div');
-        this.pjsDiv.id = 'studio-pjs';
-        Object.assign(this.pjsDiv.style, {
-          position: 'absolute', 
-          left: '0', 
-          top: '0',
-          width: '100%',
-          height: '100%',
-          zIndex: '0',
-          // Minimal GPU promotion - only what's necessary
-          transform: 'translateZ(0)',
-        });
-        viewport.appendChild(this.pjsDiv);
-        console.log('✅ Layer 0 (particles.js div) created with flexible sizing (100% of container)');
-      } catch (error) {
-        console.error('❌ Layer 0 creation failed:', error);
-        throw error;
-      }
+      this.pjsDiv = document.createElement('div');
+      this.pjsDiv.id = 'studio-pjs';
+      Object.assign(this.pjsDiv.style, {
+        position: 'absolute', inset: '0', zIndex: '0',
+      });
+      viewport.appendChild(this.pjsDiv);
 
       // Layer 1: Three.js WebGL canvas
-      try {
-        this.threeCanvas = document.createElement('canvas');
-        // Set initial dimensions - will be updated by handleResize()
-        this.threeCanvas.width = window.innerWidth || 1920;
-        this.threeCanvas.height = window.innerHeight || 1080;
-        Object.assign(this.threeCanvas.style, {
-          position: 'absolute', inset: '0',
-          width: '100%', height: '100%',
-          zIndex: '1', pointerEvents: 'all',
-          // Minimal GPU promotion
-          transform: 'translateZ(0)',
-        });
-        viewport.appendChild(this.threeCanvas);
-        console.log('✅ Layer 1 (Three.js canvas) created');
-      } catch (error) {
-        console.error('❌ Layer 1 creation failed:', error);
-        throw error;
-      }
+      this.threeCanvas = document.createElement('canvas');
+      Object.assign(this.threeCanvas.style, {
+        position: 'absolute', inset: '0',
+        width: '100%', height: '100%',
+        zIndex: '1', pointerEvents: 'all',
+      });
+      viewport.appendChild(this.threeCanvas);
 
       // Layer 2: 2D sprite canvas
-      try {
-        this.spriteCanvas = document.createElement('canvas');
-        // Set initial dimensions - will be updated by handleResize()
-        this.spriteCanvas.width = window.innerWidth || 1920;
-        this.spriteCanvas.height = window.innerHeight || 1080;
-        Object.assign(this.spriteCanvas.style, {
-          position: 'absolute', inset: '0',
-          width: '100%', height: '100%',
-          zIndex: '2', pointerEvents: 'none',
-          // Minimal GPU promotion
-          transform: 'translateZ(0)',
-        });
-        viewport.appendChild(this.spriteCanvas);
-        this.spriteCtx = this.spriteCanvas.getContext('2d')!;
-        if (!this.spriteCtx) {
-          throw new Error('Failed to get 2D context from sprite canvas');
-        }
-        console.log('✅ Layer 2 (sprite canvas) created');
-      } catch (error) {
-        console.error('❌ Layer 2 creation failed:', error);
-        throw error;
-      }
+      this.spriteCanvas = document.createElement('canvas');
+      Object.assign(this.spriteCanvas.style, {
+        position: 'absolute', inset: '0',
+        width: '100%', height: '100%',
+        zIndex: '2', pointerEvents: 'none',
+      });
+      viewport.appendChild(this.spriteCanvas);
+      this.spriteCtx = this.spriteCanvas.getContext('2d')!;
 
       // Layer 3: Scanlines
-      try {
-        const scanlines = document.createElement('div');
-        Object.assign(scanlines.style, {
-          position: 'absolute', inset: '0', zIndex: '3',
-          pointerEvents: 'none',
-          opacity: '0.06',
-          background: 'linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%)',
-          backgroundSize: '100% 4px',
-          // Only promote scanlines for smooth opacity
-          transform: 'translateZ(0)',
-        });
-        viewport.appendChild(scanlines);
-        console.log('✅ Layer 3 (scanlines) created');
-      } catch (error) {
-        console.error('❌ Layer 3 creation failed:', error);
-        throw error;
-      }
+      const scanlines = document.createElement('div');
+      Object.assign(scanlines.style, {
+        position: 'absolute', inset: '0', zIndex: '3',
+        pointerEvents: 'none',
+        opacity: '0.06',
+        background: 'linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%)',
+        backgroundSize: '100% 4px',
+      });
+      viewport.appendChild(scanlines);
 
-      // ── Left panel (340px) — must be first child for flex row layout
+      this.overlay.appendChild(viewport);
+
+      // ── Left panel (340px)
       try {
-        console.log('🔨 Starting buildLeftPanel()...');
         const leftPanel = this.buildLeftPanel();
         this.overlay.appendChild(leftPanel);
-        console.log('✅ Left panel appended');
       } catch (error) {
         console.error('❌ Left panel creation failed:', error);
         throw error;
       }
 
-      // ── Viewport (center, takes remaining width)
-      this.overlay.appendChild(viewport);
-      console.log('✅ Viewport assembled');
-
-      // ── Controls panel (right, 340px) — last child for flex row layout
+      // ── Controls panel (right, 340px)
       try {
-        console.log('🔨 Starting buildPanel()...');
         const panel = this.buildPanel();
         this.overlay.appendChild(panel);
-        console.log('✅ Right panel appended');
       } catch (error) {
         console.error('❌ Right panel creation failed:', error);
         throw error;
       }
 
       document.body.appendChild(this.overlay);
-      console.log('✅ Studio overlay appended to document body');
 
       // Resize handler
-      try {
-        const onResize = () => this.handleResize();
-        window.addEventListener('resize', onResize);
-        setTimeout(onResize, 0);
-        console.log('✅ Resize handler registered');
-      } catch (error) {
-        console.error('❌ Resize handler registration failed:', error);
-        throw error;
-      }
+      const onResize = () => this.handleResize();
+      window.addEventListener('resize', onResize);
+      setTimeout(onResize, 0);
 
       // Add CSS for loading spinner
-      try {
-        const style = document.createElement('style');
-        style.textContent = `
-          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          .loading-spinner { display: inline-block; animation: spin 1s linear infinite; }
-        `;
-        document.head.appendChild(style);
-        console.log('✅ Loading spinner CSS added');
-      } catch (error) {
-        console.error('❌ CSS injection failed:', error);
-        throw error;
-      }
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-spinner { display: inline-block; animation: spin 1s linear infinite; }
+      `;
+      document.head.appendChild(style);
 
       // Keyboard
-      try {
-        document.addEventListener('keydown', (e) => {
-          if (!this.isVisible) return;
-          if (e.key === 'Escape') this.hide();
-          if (e.key === '[') this.toggleLeftPanel();
-          if (e.key === ']') this.toggleRightPanel();
-          if (e.key === '\\') {
-            this.toggleLeftPanel();
-            this.toggleRightPanel();
-          }
-        });
-        console.log('✅ Keyboard handlers registered');
-      } catch (error) {
-        console.error('❌ Keyboard handler registration failed:', error);
-        throw error;
-      }
+      document.addEventListener('keydown', (e) => {
+        if (!this.isVisible) return;
+        if (e.key === 'Escape') this.hide();
+        if (e.key === '[') this.toggleLeftPanel();
+        if (e.key === ']') this.toggleRightPanel();
+        if (e.key === '\\') {
+          this.toggleLeftPanel();
+          this.toggleRightPanel();
+        }
+      });
       
       console.log('✅ Studio.buildDOM() completed successfully');
     } catch (error) {
@@ -388,36 +303,16 @@ export class Studio {
     }
   }
   private handleResize() {
-    try {
-      const vw = this.threeCanvas.parentElement?.clientWidth ?? 1920;
-      const vh = this.threeCanvas.parentElement?.clientHeight ?? 1080;
-      
-      this.threeCanvas.width = vw;
-      this.threeCanvas.height = vh;
-      this.spriteCanvas.width = vw;
-      this.spriteCanvas.height = vh;
-      
-      if (this.threeRenderer) {
-        this.threeRenderer.setSize(vw, vh);
-        this.threeCamera.aspect = vw / vh;
-        this.threeCamera.updateProjectionMatrix();
-      }
-      
-      // Update particles.js canvas dimensions if it exists
-      if (this.pjsDiv) {
-        const particlesCanvas = this.pjsDiv.querySelector('canvas.particles-js-canvas-el') as HTMLCanvasElement | null;
-        if (particlesCanvas) {
-          // Update internal dimensions to match container
-          particlesCanvas.width = vw;
-          particlesCanvas.height = vh;
-          console.log(`📐 Particles.js canvas resized to ${vw}x${vh}`);
-        }
-      }
-      
-      console.log(`📐 Studio.handleResize() — ${vw}x${vh}`);
-    } catch (error) {
-      console.error('❌ handleResize() failed:', error);
-      // Don't rethrow - resize errors shouldn't crash the app
+    const vw = this.threeCanvas.parentElement!.clientWidth;
+    const vh = this.threeCanvas.parentElement!.clientHeight;
+    this.threeCanvas.width = vw;
+    this.threeCanvas.height = vh;
+    this.spriteCanvas.width = vw;
+    this.spriteCanvas.height = vh;
+    if (this.threeRenderer) {
+      this.threeRenderer.setSize(vw, vh);
+      this.threeCamera.aspect = vw / vh;
+      this.threeCamera.updateProjectionMatrix();
     }
   }
 
@@ -1137,8 +1032,8 @@ export class Studio {
     try {
       console.log('🎮 bootThree() — initializing Three.js FBO system');
 
-      const w = this.threeCanvas.width || window.innerWidth || 1920;
-      const h = this.threeCanvas.height || window.innerHeight || 1080;
+      const w = 100;
+      const h = 100;
 
       try {
         this.threeScene = new THREE.Scene();
