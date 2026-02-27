@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOUNDER CONSOLE // ORCHESTR8</title>
+    <meta name="description" content="Founder Console — Agent communications dashboard for Orchestr8">
+
+    <!-- FONTS (VTL Locked) -->
+    <link href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Poiret+One&family=VT323&display=swap"
+        rel="stylesheet">
+
+    <!-- LIBRARIES -->
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+    <style>
+        /* === VISUAL TOKEN LOCK === */
+        :root {
+            --bg-obsidian: #050505;
+            --gold-dark: #C5A028;
+            --gold-light: #F4C430;
+            --teal: #00E5E5;
+            --text-grey: #CCC;
+            --void-text: rgba(255, 255, 255, 0.04);
+            --button-bg-subtle: rgba(197, 160, 40, 0.1);
+            --border-gold-faint: rgba(197, 160, 40, 0.3);
+            --text-dim: rgba(255, 255, 255, 0.4);
+            --scanline-black: rgba(0, 0, 0, 0.25);
+
+            --font-header: 'Marcellus SC', serif;
+            --font-ui: 'Poiret One', cursive;
+            --font-data: 'VT323', monospace;
+
+            --state-working: #D4AF37;
+            --state-broken: #1fbdea;
+            --state-combat: #9D4EDD;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-obsidian);
+            color: #E0E0E0;
+            font-family: var(--font-ui);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* === SCANLINES === */
+        .scanlines {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 900;
+            opacity: 0.06;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, var(--scanline-black) 50%);
+            background-size: 100% 4px;
+        }
+
+        /* === INIT OVERLAY === */
+        #start-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-obsidian);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+            transition: opacity 0.5s;
+        }
+
+        .init-btn {
+            background: transparent;
+            color: var(--teal);
+            border: 2px solid var(--gold-dark);
+            padding: 15px 40px;
+            font-family: var(--font-header);
+            font-size: 1.5rem;
+            cursor: pointer;
+            letter-spacing: 4px;
+            transition: 0.3s;
+        }
+
+        .init-btn:hover {
+            background: var(--gold-dark);
+            color: #000;
+            box-shadow: 0 0 30px rgba(197, 160, 40, 0.4);
+        }
+
+        .init-subtitle {
+            color: var(--text-dim);
+            font-family: var(--font-data);
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        /* === PARTICLES === */
+        #idle-particles {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            opacity: 0;
+            transition: opacity 3s;
+        }
+
+        /* === HEADER === */
+        header {
+            flex: 0 0 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 40px;
+            background: linear-gradient(to bottom, #000, rgba(5, 5, 5, 0.8));
+            border-bottom: 1px solid var(--border-gold-faint);
+            z-index: 50;
+        }
+
+        .top-btn {
+            height: 50px;
+            padding: 0 30px;
+            background: var(--button-bg-subtle);
+            border: 1px solid var(--gold-dark);
+            color: var(--gold-light);
+            font-family: var(--font-header);
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 160px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .top-btn:hover {
+            background: var(--gold-dark);
+            color: #000;
+            box-shadow: 0 0 20px rgba(197, 160, 40, 0.3);
+        }
+
+        .top-btn.active {
+            background: var(--gold-dark);
+            color: #000;
+        }
+
+        /* === MAIN CONTENT === */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            z-index: 50;
+        }
+
+        /* === SIDEBAR === */
+        .sidebar {
+            width: 260px;
+            flex: 0 0 260px;
+            background: linear-gradient(to bottom, rgba(5, 5, 5, 0.95), rgba(10, 10, 15, 0.95));
+            border-right: 1px solid var(--border-gold-faint);
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 0 20px;
+            margin-bottom: 24px;
+        }
+
+        .sidebar-label {
+            font-family: var(--font-data);
+            font-size: 11px;
+            color: var(--gold-dark);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-family: var(--font-ui);
+            font-size: 14px;
+            color: var(--text-grey);
+            margin-bottom: 4px;
+        }
+
+        .sidebar-item:hover {
+            border-color: var(--border-gold-faint);
+            background: rgba(197, 160, 40, 0.05);
+        }
+
+        .sidebar-item.active {
+            border-color: var(--gold-dark);
+            background: rgba(197, 160, 40, 0.1);
+            color: var(--gold-light);
+        }
+
+        .sidebar-item .badge {
+            margin-left: auto;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-family: var(--font-data);
+        }
+
+        .badge-teal {
+            background: rgba(0, 229, 229, 0.15);
+            color: var(--teal);
+        }
+
+        .badge-gold {
+            background: rgba(197, 160, 40, 0.15);
+            color: var(--gold-light);
+        }
+
+        .badge-red {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        /* === CONTENT AREA === */
+        .content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(197, 160, 40, 0.15);
+        }
+
+        .content-title {
+            font-family: var(--font-header);
+            font-size: 1.5rem;
+            color: var(--gold-light);
+            letter-spacing: 2px;
+        }
+
+        .content-subtitle {
+            font-family: var(--font-data);
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* === STATUS GRID === */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .status-card:hover {
+            border-color: var(--border-gold-faint);
+        }
+
+        .status-card .count {
+            font-family: var(--font-data);
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .status-card .label {
+            font-family: var(--font-ui);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+            opacity: 0.6;
+        }
+
+        /* === INTENT CARDS === */
+        .intent-card {
+            background: rgba(18, 18, 26, 0.8);
+            border: 1px solid rgba(197, 160, 40, 0.15);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .intent-card:hover {
+            border-color: var(--gold-dark);
+            transform: translateX(4px);
+        }
+
+        .intent-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .intent-id {
+            color: var(--teal);
+            font-family: var(--font-data);
+            font-size: 14px;
+        }
+
+        .intent-badges {
+            display: flex;
+            gap: 6px;
+        }
+
+        .intent-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-family: var(--font-data);
+            border: 1px solid;
+            text-transform: uppercase;
+        }
+
+        .intent-text {
+            color: var(--text-grey);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .intent-meta {
+            display: flex;
+            gap: 16px;
+            font-family: var(--font-data);
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        /* === ACTION BUTTONS === */
+        .action-btn {
+            height: 32px;
+            padding: 0 16px;
+            background: var(--button-bg-subtle);
+            border: 1px solid var(--gold-dark);
+            color: var(--gold-light);
+            font-family: var(--font-ui);
+            font-size: 12px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 4px;
+        }
+
+        .action-btn:hover {
+            background: var(--gold-dark);
+            color: #000;
+        }
+
+        .action-btn.teal {
+            border-color: var(--teal);
+            color: var(--teal);
+        }
+
+        .action-btn.teal:hover {
+            background: var(--teal);
+            color: #000;
+        }
+
+        /* === FOOTER === */
+        footer {
+            flex: 0 0 auto;
+            background: linear-gradient(to top, #000 80%, transparent);
+            padding: 12px 40px 20px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 50;
+        }
+
+        .input-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        input.maestro-bar {
+            width: 100%;
+            padding: 8px 0;
+            font-family: var(--font-ui);
+            font-size: 1.2rem;
+            color: #fff;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            text-align: center;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input.maestro-bar:focus {
+            border-bottom-color: var(--teal);
+        }
+
+        input.maestro-bar::placeholder {
+            color: var(--text-dim);
+            font-weight: bold;
+        }
+
+        .deck-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-mini {
+            height: 22px;
+            padding: 0 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 2px;
+            color: #AAA;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-mini:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #FFF;
+            border-color: #FFF;
+        }
+
+        .btn-mini.active {
+            background: var(--teal);
+            color: #000;
+            border-color: var(--teal);
+        }
+
+        .btn-maestro {
+            height: 36px;
+            padding: 0 25px;
+            background-color: var(--gold-dark);
+            color: var(--teal);
+            border: 1px solid var(--gold-light);
+            font-family: var(--font-ui);
+            font-weight: 900;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(197, 160, 40, 0.3);
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+
+        .btn-maestro:hover {
+            background-color: #dcb32d;
+            box-shadow: 0 0 25px rgba(197, 160, 40, 0.6);
+            transform: scale(1.05);
+        }
+
+        .status-text {
+            position: fixed;
+            bottom: 5px;
+            left: 5px;
+            font-family: var(--font-data);
+            color: rgba(255, 255, 255, 0.1);
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        /* === LOADING SKELETON === */
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.06) 50%, rgba(255, 255, 255, 0.02) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+            height: 60px;
+            margin-bottom: 10px;
+        }
+
+        /* === ANIMATIONS === */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="scanlines"></div>
+
+    <!-- INIT OVERLAY -->
+    <div id="start-overlay">
+        <button class="init-btn" id="start-btn">INITIALIZE CONSOLE</button>
+        <div class="init-subtitle">FOUNDER CONSOLE v0.4.0 :: FC-04</div>
+    </div>
+
+    <!-- PARTICLES -->
+    <div id="idle-particles"></div>
+
+    <!-- HEADER -->
+    <header id="app-header" style="display:none;">
+        <button class="top-btn" id="nav-comms" onclick="switchView('comms')">[ COMMS ]</button>
+        <button class="top-btn active" id="nav-intents" onclick="switchView('intents')">INTENTS</button>
+        <button class="top-btn" id="nav-review" onclick="switchView('review')">[ REVIEW ]</button>
+    </header>
+
+    <!-- MAIN -->
+    <main id="app-main" style="display:none;">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-label">// SYSTEM</div>
+                <div class="sidebar-item active" id="sb-dashboard" onclick="switchPanel('dashboard')">
+                    <span>◆</span> Dashboard
+                </div>
+                <div class="sidebar-item" id="sb-intents" onclick="switchPanel('intents')">
+                    <span>◇</span> Intent Queue
+                    <span class="badge badge-teal" id="intent-count-badge">0</span>
+                </div>
+                <div class="sidebar-item" id="sb-packets" onclick="switchPanel('packets')">
+                    <span>◇</span> Packets
+                </div>
+                <div class="sidebar-item" id="sb-flags" onclick="switchPanel('flags')">
+                    <span>◇</span> Flags
+                    <span class="badge badge-gold" id="flag-count-badge">0</span>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-label">// REVIEW</div>
+                <div class="sidebar-item" id="sb-review" onclick="switchPanel('review')">
+                    <span>◇</span> Review Queue
+                </div>
+                <div class="sidebar-item" id="sb-annotations" onclick="switchPanel('annotations')">
+                    <span>◇</span> Annotations
+                </div>
+                <div class="sidebar-item" id="sb-timeline" onclick="switchPanel('timeline')">
+                    <span>◇</span> Timeline
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-label">// SYSTEM</div>
+                <div class="sidebar-item" id="sb-health" onclick="switchPanel('health')">
+                    <span>◇</span> Health
+                    <span class="badge badge-teal pulse" id="health-badge">●</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="content" id="content-area">
+            <!-- Dashboard panel (default) -->
+            <div id="panel-dashboard">
+                <div class="content-header">
+                    <div>
+                        <div class="content-title">FOUNDER CONSOLE</div>
+                        <div class="content-subtitle">AGENT COMMUNICATIONS DASHBOARD</div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="action-btn teal" onclick="scanIntents()">⟳ SCAN REPOS</button>
+                        <button class="action-btn" onclick="refreshAll()">↻ REFRESH</button>
+                    </div>
+                </div>
+                <div class="status-grid" id="status-grid">
+                    <!-- Populated via JS -->
+                </div>
+                <div id="recent-intents">
+                    <div class="sidebar-label" style="padding:0;margin-bottom:12px;">// RECENT INTENTS</div>
+                    <div id="intent-list">
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="app-footer" style="display:none;">
+        <div class="input-container">
+            <input type="text" class="maestro-bar" placeholder="founder directive..." id="cmd-input">
+        </div>
+        <div class="deck-row">
+            <div class="btn-group">
+                <button class="btn-mini" onclick="scanIntents()">Scan</button>
+                <button class="btn-mini" onclick="switchPanel('flags')">Flags</button>
+                <button class="btn-mini" onclick="switchPanel('packets')">Packets</button>
+                <button class="btn-mini" onclick="switchPanel('timeline')">Timeline</button>
+            </div>
+            <button class="btn-maestro" onclick="switchPanel('dashboard')">CONSOLE</button>
+            <div class="btn-group">
+                <button class="btn-mini" onclick="switchPanel('review')">Review</button>
+                <button class="btn-mini" onclick="switchPanel('annotations')">Notes</button>
+                <button class="btn-mini" onclick="switchPanel('health')">Health</button>
+                <button class="btn-mini" onclick="exportAudit()">Export</button>
+            </div>
+        </div>
+    </footer>
+
+    <div class="status-text" id="status-text">SYSTEM STANDBY</div>
+
+    <script>
+        const API = '/api/v1';
+        let currentPanel = 'dashboard';
+
+        // === INIT ===
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const overlay = document.getElementById('start-overlay');
+            overlay.style.opacity = 0;
+            setTimeout(() => {
+                overlay.remove();
+                document.getElementById('app-header').style.display = 'flex';
+                document.getElementById('app-main').style.display = 'flex';
+                document.getElementById('app-footer').style.display = 'flex';
+                initParticles();
+                refreshAll();
+            }, 500);
+        });
+
+        // === PARTICLES ===
+        function initParticles() {
+            document.getElementById('idle-particles').style.opacity = '0.3';
+            if (typeof particlesJS !== 'undefined') {
+                particlesJS('idle-particles', {
+                    particles: {
+                        number: { value: 40 },
+                        color: { value: "#444" },
+                        shape: { type: "circle" },
+                        opacity: { value: 0.2, random: true },
+                        size: { value: 2 },
+                        line_linked: { enable: true, distance: 150, color: "#C5A028", opacity: 0.08, width: 1 },
+                        move: { enable: true, speed: 0.3 }
+                    }
+                });
+            }
+        }
+
+        // === API HELPERS ===
+        async function api(path, opts = {}) {
+            try {
+                const res = await fetch(API + path, opts);
+                if (!res.ok) throw new Error(res.statusText);
+                return await res.json();
+            } catch (e) {
+                console.error('API error:', path, e);
+                return null;
+            }
+        }
+
+        // === DATA FETCHING ===
+        async function refreshAll() {
+            updateStatus('REFRESHING...');
+            await Promise.all([loadHealth(), loadIntents(), loadFlags()]);
+            updateStatus('SYSTEM ONLINE');
+        }
+
+        async function loadHealth() {
+            try {
+                const res = await fetch('/health');
+                const data = await res.json();
+                const badge = document.getElementById('health-badge');
+                if (data && data.status === 'ok') {
+                    badge.textContent = '●';
+                    badge.className = 'badge badge-teal pulse';
+                } else {
+                    badge.textContent = '○';
+                    badge.className = 'badge badge-red';
+                }
+            } catch (e) {
+                console.error('Health check failed:', e);
+                const badge = document.getElementById('health-badge');
+                badge.textContent = '○';
+                badge.className = 'badge badge-red';
+            }
+        }
+
+        async function loadIntents() {
+            const data = await api('/intents');
+            if (!data) return;
+            const intents = data.intents || [];
+            document.getElementById('intent-count-badge').textContent = intents.length;
+
+            // Status counts
+            const counts = await api('/intents/status-counts');
+            if (counts && counts.counts) {
+                renderStatusGrid(counts.counts);
+            }
+
+            renderIntentList(intents.slice(0, 20));
+        }
+
+        async function loadFlags() {
+            const data = await api('/flags/unread');
+            if (data && data.flags) {
+                document.getElementById('flag-count-badge').textContent = data.flags.length;
+            } else if (data && typeof data.count !== 'undefined') {
+                document.getElementById('flag-count-badge').textContent = data.count;
+            }
+        }
+
+        async function scanIntents() {
+            updateStatus('SCANNING REPOSITORIES...');
+            const data = await api('/intents/scan', { method: 'POST' });
+            if (data) {
+                updateStatus(`SCAN COMPLETE :: ${data.count || 0} intents found`);
+                await loadIntents();
+            }
+        }
+
+        async function exportAudit() {
+            updateStatus('EXPORT NOT AVAILABLE - SELECT PACKET FIRST');
+        }
+
+        // === RENDERING ===
+        function renderStatusGrid(counts) {
+            const grid = document.getElementById('status-grid');
+            const statuses = [
+                { key: 'NEW', color: '#00E5E5' },
+                { key: 'REVIEWED', color: '#FFB800' },
+                { key: 'APPROVED', color: '#00FF88' },
+                { key: 'PROPOSED', color: '#AA88FF' },
+                { key: 'DISMISSED', color: '#FF4466' },
+                { key: 'PROCESSED', color: '#888899' },
+                { key: 'UNPROCESSED', color: '#666677' },
+            ];
+            grid.innerHTML = statuses.map(s => `
+                <div class="status-card fade-in" onclick="filterByStatus('${s.key}')">
+                    <div class="count" style="color:${s.color}">${counts[s.key] || 0}</div>
+                    <div class="label">${s.key}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderIntentList(intents) {
+            const list = document.getElementById('intent-list');
+            if (!intents.length) {
+                list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim);font-family:var(--font-data)">No intents found. Click SCAN to discover.</div>';
+                return;
+            }
+            list.innerHTML = intents.map((i, idx) => `
+                <div class="intent-card fade-in" style="animation-delay:${idx * 0.05}s">
+                    <div class="intent-card-header">
+                        <span class="intent-id">#${i.id || '?'}</span>
+                        <div class="intent-badges">
+                            <span class="intent-badge" style="color:${statusColor(i.status)};border-color:${statusColor(i.status)}">${i.status || 'NEW'}</span>
+                            <span class="intent-badge" style="color:${typeColor(i.type)};border-color:${typeColor(i.type)}">${i.type || 'TODO'}</span>
+                        </div>
+                    </div>
+                    <div class="intent-text">${escapeHtml(i.intent_text || i.raw_content || '')}</div>
+                    <div class="intent-meta">
+                        <span>📁 ${i.source_repo || 'unknown'}</span>
+                        <span>📄 ${shortenPath(i.file_path)}:${i.line_number}</span>
+                        <span>🕐 ${formatTime(i.discovered_at)}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // === VIEW SWITCHING ===
+        function switchView(view) {
+            document.querySelectorAll('.top-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('nav-' + view)?.classList.add('active');
+            switchPanel(view === 'comms' ? 'dashboard' : view === 'intents' ? 'intents' : 'review');
+        }
+
+        const dashboardTemplate = `
+            <div id="panel-dashboard">
+                <div class="content-header">
+                    <div>
+                        <div class="content-title">FOUNDER CONSOLE</div>
+                        <div class="content-subtitle">AGENT COMMUNICATIONS DASHBOARD</div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="action-btn teal" onclick="scanIntents()">⟳ SCAN REPOS</button>
+                        <button class="action-btn" onclick="refreshAll()">↻ REFRESH</button>
+                    </div>
+                </div>
+                <div class="status-grid" id="status-grid"></div>
+                <div id="recent-intents">
+                    <div class="sidebar-label" style="padding:0;margin-bottom:12px;">// RECENT INTENTS</div>
+                    <div id="intent-list">
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        function switchPanel(panel) {
+            currentPanel = panel;
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            document.getElementById('sb-' + panel)?.classList.add('active');
+
+            const content = document.getElementById('content-area');
+            if (panel === 'dashboard') {
+                // Rebuild dashboard DOM if missing (other panels wipe innerHTML)
+                if (!content.querySelector('#panel-dashboard')) {
+                    content.innerHTML = dashboardTemplate;
+                }
+                content.querySelector('#panel-dashboard').style.display = 'block';
+                refreshAll();
+            } else if (panel === 'intents') {
+                // Rebuild dashboard for intents view (shares the same structure)
+                if (!content.querySelector('#panel-dashboard')) {
+                    content.innerHTML = dashboardTemplate;
+                }
+                content.querySelector('#panel-dashboard').style.display = 'block';
+                loadIntents();
+            } else if (panel === 'health') {
+                loadHealthPanel(content);
+            } else {
+                content.innerHTML = `
+                    <div class="content-header">
+                        <div>
+                            <div class="content-title">${panel.toUpperCase()}</div>
+                            <div class="content-subtitle">LOADING...</div>
+                        </div>
+                    </div>
+                    <div class="skeleton"></div><div class="skeleton"></div>
+                `;
+                loadGenericPanel(panel, content);
+            }
+        }
+
+        async function loadHealthPanel(content) {
+            let data = null;
+            try {
+                const res = await fetch('/health');
+                data = await res.json();
+            } catch (e) { console.error('Health panel fetch:', e); }
+            const mem = await api('/flags/health');
+
+            content.innerHTML = `
+                <div class="content-header">
+                    <div>
+                        <div class="content-title">SYSTEM HEALTH</div>
+                        <div class="content-subtitle">${data?.status === 'ok' ? 'ALL SYSTEMS NOMINAL' : 'DEGRADED'}</div>
+                    </div>
+                </div>
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="count" style="color:${data?.status === 'ok' ? '#00FF88' : '#FF4466'}">${data?.status === 'ok' ? '●' : '○'}</div>
+                        <div class="label">API</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="count" style="color:${mem ? '#00FF88' : '#FFB800'}">${mem ? '●' : '?'}</div>
+                        <div class="label">MEMORY</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="count" style="color:#00E5E5">${data?.service || 'unknown'}</div>
+                        <div class="label">SERVICE</div>
+                    </div>
+                </div>
+            `;
+            updateStatus(data?.status === 'ok' ? 'ALL SYSTEMS NOMINAL' : 'DEGRADED');
+        }
+
+        async function loadGenericPanel(panel, content) {
+            const endpoints = {
+                packets: '/packets',
+                flags: '/flags',
+                review: '/review/queue',
+                annotations: '/annotations',
+                timeline: '/timeline',
+            };
+            const ep = endpoints[panel];
+            if (!ep) return;
+
+            const data = await api(ep);
+            if (data) {
+                const items = data[Object.keys(data).find(k => Array.isArray(data[k]))] || [];
+                content.innerHTML = `
+                    <div class="content-header">
+                        <div>
+                            <div class="content-title">${panel.toUpperCase()}</div>
+                            <div class="content-subtitle">${items.length} ITEMS</div>
+                        </div>
+                    </div>
+                    ${items.length ? items.map(i => `<div class="intent-card fade-in"><pre style="margin:0;white-space:pre-wrap;font-family:var(--font-data);font-size:12px;color:var(--text-grey)">${escapeHtml(JSON.stringify(i, null, 2))}</pre></div>`).join('') : '<div style="text-align:center;padding:40px;color:var(--text-dim)">No items</div>'}
+                `;
+            }
+        }
+
+        async function filterByStatus(status) {
+            updateStatus(`FILTERING: ${status}`);
+            const data = await api(`/intents/filter?status=${status}`);
+            if (data) renderIntentList(data.intents || []);
+        }
+
+        // === COMMAND INPUT ===
+        document.getElementById('cmd-input')?.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const val = e.target.value.trim();
+                if (!val) return;
+                updateStatus(`DIRECTIVE: ${val}`);
+                const res = await api('/founder/directive', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ directive: val, priority: 'MEDIUM' })
+                });
+                if (res) updateStatus(`DIRECTIVE SUBMITTED :: ${res.status || 'OK'}`);
+                e.target.value = '';
+            }
+        });
+
+        // === HELPERS ===
+        function statusColor(s) {
+            const m = { NEW: '#00E5E5', REVIEWED: '#FFB800', APPROVED: '#00FF88', DISMISSED: '#FF4466', PROCESSED: '#888899', PROPOSED: '#AA88FF', UNPROCESSED: '#666677' };
+            return m[s] || '#666677';
+        }
+        function typeColor(t) { return t === 'FOUNDER' ? '#C5A028' : '#00E5E5'; }
+        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function shortenPath(p) { if (!p) return ''; const parts = p.split('/'); return parts.length > 3 ? '…/' + parts.slice(-3).join('/') : p; }
+        function formatTime(t) { if (!t) return ''; try { return new Date(t).toLocaleString(); } catch { return t; } }
+        function updateStatus(msg) { document.getElementById('status-text').textContent = msg; }
+    </script>
+</body>
+
+</html>

@@ -16,6 +16,8 @@ import { BricklominatorPhase } from './game/brickliminator';
 import { FnlloydCharacter } from './game/fnlloyd';
 import { HUD } from './ui/hud';
 import { Menus } from './ui/menus';
+import { ParticleEditor } from './ui/particle-editor';
+// Note: Studio is initialized inside Menus — no direct import needed here
 
 // --- GLOBALS ---
 const renderer = new Renderer();
@@ -29,6 +31,7 @@ const arkanoid = new ArkanoidPhase();
 const brickliminator = new BricklominatorPhase();
 const hud = new HUD();
 const menus = new Menus();
+const editor = new ParticleEditor();
 
 // --- INPUT ---
 const input = {
@@ -39,6 +42,13 @@ const input = {
 
 function initInput() {
   const canvas = renderer.gameCanvas;
+
+  // Initialize particle editor
+  editor.init(() => ({
+    bgCtx: renderer.bgCtx,
+    gameCtx: renderer.gameCtx,
+    gpuCanvas: renderer.gpuCanvas,
+  }));
 
   const getPos = (e: MouseEvent) => {
     const rect = canvas.getBoundingClientRect();
@@ -114,6 +124,23 @@ function initInput() {
 
   // Keyboard controls
   document.addEventListener('keydown', e => {
+    // Particle Editor shortcuts
+    if (e.key === 'r' || e.key === 'R') {
+      editor.toggleRecording();
+    }
+    if (e.key === 'p' || e.key === 'P') {
+      editor.togglePause();
+    }
+    if (e.key === 's' || e.key === 'S') {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        editor.exportCurrentRecording();
+      }
+    }
+    if (e.key === 'Escape') {
+      editor.hide();
+    }
+
     // Q/E to cycle Brickliminator shapes
     if (state.phase === 'BRICKLIMINATOR' && (e.key === 'q' || e.key === 'e' || e.key === 'Q' || e.key === 'E')) {
       brickliminator.cycleShape();
@@ -238,8 +265,8 @@ async function boot() {
 
   // Try to load glTF model for particle positions
   try {
-    // Use the Idle pose as default particle positions
-    await fnlloyd.loadModel('Reference Files/assets/199d6a92-dc02-4efd-b31a-9b2a70209014.gltf');
+    // Use the Trex.glb model as default particle positions
+    await fnlloyd.loadModel('/libs/Trex.glb');
   } catch (err) {
     console.warn('glTF model load failed, using procedural silhouette:', err);
   }

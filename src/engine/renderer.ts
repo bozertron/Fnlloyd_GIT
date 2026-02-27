@@ -223,6 +223,59 @@ export class Renderer {
     c.fillText(text, x, y);
   }
 
+  // --- SPRITE DRAWING ---
+  drawSprite(
+    image: ImageBitmap | HTMLCanvasElement | null,
+    x: number,
+    y: number,
+    width?: number,
+    height?: number,
+    alpha = 1.0
+  ) {
+    if (!image) return;
+    
+    const c = this.gameCtx;
+    const prevAlpha = c.globalAlpha;
+    
+    c.globalAlpha = alpha;
+    c.drawImage(
+      image,
+      x,
+      y,
+      width || (image as ImageBitmap).width,
+      height || (image as ImageBitmap).height
+    );
+    
+    c.globalAlpha = prevAlpha;
+  }
+
+  drawSpriteWithTransform(
+    image: ImageBitmap | HTMLCanvasElement | null,
+    x: number,
+    y: number,
+    scaleX = 1.0,
+    scaleY = 1.0,
+    rotation = 0.0,
+    alpha = 1.0
+  ) {
+    if (!image) return;
+    
+    const c = this.gameCtx;
+    const prevTransform = c.getTransform();
+    const prevAlpha = c.globalAlpha;
+    
+    try {
+      c.globalAlpha = alpha;
+      c.translate(x, y);
+      c.rotate(rotation);
+      c.scale(scaleX, scaleY);
+      c.drawImage(image, 0, 0);
+    } finally {
+      c.setTransform(prevTransform);
+      c.globalAlpha = prevAlpha;
+    }
+  }
+
   // --- BACKGROUND (Canvas2D fallback when WebGPU unavailable) ---
   drawStarfield(time: number) {
     const c = this.bgCtx;

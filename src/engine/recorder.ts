@@ -190,7 +190,11 @@ export class AnimationRecorder {
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.warn('Failed to get 2D context for export');
+      return null;
+    }
 
     // Add each frame as PNG
     for (let i = 0; i < this.frames.length; i++) {

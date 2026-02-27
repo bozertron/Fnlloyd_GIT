@@ -160,6 +160,9 @@ export class StudioRecorder {
 
       // Capture as PNG blob
       canvas.toBlob((blob) => {
+        // Guard against race with stop()
+        if (!this.recording) return;
+        
         if (blob) {
           this.frames.push(blob);
           

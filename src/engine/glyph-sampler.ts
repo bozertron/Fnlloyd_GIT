@@ -17,6 +17,11 @@ export interface GlyphSampleOptions {
 export function padOrTruncate(positions: Float32Array, targetCount: number): Float32Array {
   const currentCount = positions.length / 3;
   
+  // Early return for empty positions to avoid division by zero in centroid calculation
+  if (currentCount === 0) {
+    return new Float32Array(targetCount * 3);
+  }
+  
   if (currentCount === targetCount) {
     return positions;
   }
@@ -32,9 +37,9 @@ export function padOrTruncate(positions: Float32Array, targetCount: number): Flo
       cy += positions[i * 3 + 1];
       cz += positions[i * 3 + 2];
     }
-    cx /= currentCount;
-    cy /= currentCount;
-    cz /= currentCount;
+    cx /= currentCount || 1;
+    cy /= currentCount || 1;
+    cz /= currentCount || 1;
     
     // Copy existing points
     result.set(positions);

@@ -189,9 +189,9 @@ export class SpriteExporter {
 
       canvas.toBlob(
         (blob) => {
-          if (!blob) { 
-            console.warn('[SpriteExporter] toBlob failed for frame'); 
-            resolve(null as unknown as Blob);  // Return null, let caller handle
+          if (!blob) {
+            console.warn('[SpriteExporter] toBlob failed for frame');
+            resolve(new Blob()); // Return empty blob for consistency
             return;
           }
           resolve(blob);

@@ -2,6 +2,7 @@
 // Manages game phases, scoring, lives, earth health, transitions
 
 import { GAME, SCORING, COMBO, CANVAS_W, CANVAS_H } from '../data/constants';
+import { GameSettings, DEFAULT_SETTINGS, loadSettings, saveSettings } from '../data/settings';
 
 export type GamePhase = 'START' | 'ARKANOID' | 'TRANSITION' | 'BRICKLIMINATOR' | 'CITY_DEFENSE' | 'GAMEOVER';
 
@@ -19,6 +20,9 @@ export class GameState {
   level = 1;
 
   combo: ComboState = { count: 0, multiplier: 1, timer: 0 };
+
+  // Game settings (includes EFFECT_QUALITY toggle)
+  settings: GameSettings = { ...DEFAULT_SETTINGS };
 
   // Camera state for transition animation
   cameraScale = 1.0;
@@ -41,6 +45,9 @@ export class GameState {
     this.cameraScale = 1.0;
     this.cameraY = 0;
     this.resetCombo();
+    
+    // Load saved settings
+    this.settings = loadSettings();
   }
 
   // --- SCORING ---
@@ -135,5 +142,21 @@ export class GameState {
 
   gameOver() {
     this.setPhase('GAMEOVER');
+  }
+
+  // --- SETTINGS MANAGEMENT ---
+  updateSettings(newSettings: Partial<GameSettings>) {
+    this.settings = { ...this.settings, ...newSettings };
+    saveSettings(this.settings);
+    
+    // Trigger reload if quality changed
+    if (newSettings.effectQuality) {
+      console.log(`🔄 Quality setting changed to: ${newSettings.effectQuality}`);
+      // Note: Actual resource reload handled by ResourceLoader
+    }
+  }
+
+  getEffectQuality() {
+    return this.settings.effectQuality;
   }
 }

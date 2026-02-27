@@ -13,13 +13,35 @@ export class HUD {
   private levelAlertEl!: HTMLElement;
 
   init() {
-    this.scoreEl = document.getElementById('scoreDisplay')!;
-    this.levelEl = document.getElementById('levelDisplay')!;
-    this.comboEl = document.getElementById('comboDisplay')!;
-    this.earthEl = document.getElementById('earthHealthDisplay')!;
-    this.livesEl = document.getElementById('livesDisplay')!;
-    this.phaseAlertEl = document.getElementById('phaseAlert')!;
-    this.levelAlertEl = document.getElementById('levelAlert')!;
+    const scoreEl = document.getElementById('scoreDisplay');
+    if (!scoreEl) { console.error('[HUD] Missing element: #scoreDisplay'); return; }
+    this.scoreEl = scoreEl;
+
+    const levelEl = document.getElementById('levelDisplay');
+    if (!levelEl) { console.error('[HUD] Missing element: #levelDisplay'); return; }
+    this.levelEl = levelEl;
+
+    const comboEl = document.getElementById('comboDisplay');
+    if (!comboEl) { console.error('[HUD] Missing element: #comboDisplay'); return; }
+    this.comboEl = comboEl;
+
+    const earthEl = document.getElementById('earthHealthDisplay');
+    if (!earthEl) { console.error('[HUD] Missing element: #earthHealthDisplay'); return; }
+    this.earthEl = earthEl;
+
+    const livesEl = document.getElementById('livesDisplay');
+    if (!livesEl) { console.error('[HUD] Missing element: #livesDisplay'); return; }
+    this.livesEl = livesEl;
+
+    const phaseAlertEl = document.getElementById('phaseAlert');
+    if (!phaseAlertEl) { console.error('[HUD] Missing element: #phaseAlert'); return; }
+    this.phaseAlertEl = phaseAlertEl;
+    this.phaseAlertEl.style.transition = 'opacity 0.5s ease';
+
+    const levelAlertEl = document.getElementById('levelAlert');
+    if (!levelAlertEl) { console.error('[HUD] Missing element: #levelAlert'); return; }
+    this.levelAlertEl = levelAlertEl;
+    this.levelAlertEl.style.transition = 'opacity 0.5s ease';
   }
 
   update(state: GameState) {
@@ -33,7 +55,7 @@ export class HUD {
     else eh.classList.remove('danger');
 
     // Combo display
-    if (state.combo.multiplier > 1) {
+    if ((state.combo?.multiplier ?? 0) > 1) {
       this.comboEl.textContent = `\u00D7${state.combo.multiplier}`;
       this.comboEl.classList.add('active');
     } else {
