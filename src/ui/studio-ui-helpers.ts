@@ -197,42 +197,6 @@ export function buildSliderWithNumber(
   return { container, slider, number };
 }
 
-/** Creates a rotation slider with degree display */
-export function buildRotationControl(label: string, def: number, setter: (v: number) => void): { container: HTMLElement; slider: HTMLInputElement } {
-  const container = document.createElement('div');
-  Object.assign(container.style, { marginBottom: '10px' });
-
-  const lbl = document.createElement('div');
-  Object.assign(lbl.style, { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' });
-  const lblText = document.createElement('span');
-  lblText.textContent = label;
-  Object.assign(lblText.style, { color: '#ccc', fontSize: '13px' });
-  const valSpan = document.createElement('span');
-  valSpan.style.color = '#F4C430';
-  valSpan.style.fontFamily = "'VT323', monospace";
-  valSpan.style.fontSize = '15px';
-  valSpan.textContent = String(def) + '°';
-  lbl.appendChild(lblText);
-  lbl.appendChild(valSpan);
-  container.appendChild(lbl);
-
-  const inp = document.createElement('input');
-  inp.type = 'range';
-  inp.min = '-180';
-  inp.max = '180';
-  inp.step = '1';
-  inp.value = String(def);
-  Object.assign(inp.style, { width: '100%', accentColor: '#C5A028' });
-  inp.oninput = () => {
-    const v = parseFloat(inp.value);
-    valSpan.textContent = String(v) + '°';
-    setter(v);
-  };
-  container.appendChild(inp);
-
-  return { container, slider: inp };
-}
-
 // ─── Utilities ──────────────────────────────────────────────────────────────────
 
 export function hexToRgb(hex: string) {

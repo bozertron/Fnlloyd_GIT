@@ -163,6 +163,8 @@ export class StudioParticles {
         (window as any).pJSDom = [];
       }
     }
+    // Remove ghost canvases left behind by the old instance
+    this.container.querySelectorAll('canvas.particles-js-canvas-el').forEach(c => c.remove());
     this.spawn();
   }
 

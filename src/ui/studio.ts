@@ -174,8 +174,8 @@ export class Studio {
         position: 'fixed',
         left: '0',
         top: '0',
-        width: '1920px',
-        height: '1080px',
+        width: '100vw',
+        height: '100vh',
         display: 'none', 
         flexDirection: 'row',
         background: '#050505', 
@@ -281,28 +281,27 @@ export class Studio {
         throw error;
       }
 
-      this.overlay.appendChild(viewport);
-      console.log('✅ Viewport assembled');
-
-      // ── Left panel (340px)
+      // ── Left panel (340px) — must be first child for flex row layout
       try {
         console.log('🔨 Starting buildLeftPanel()...');
         const leftPanel = this.buildLeftPanel();
-        console.log('✅ Left panel created, appending...');
         this.overlay.appendChild(leftPanel);
-        console.log('✅ Left panel appended to overlay');
+        console.log('✅ Left panel appended');
       } catch (error) {
         console.error('❌ Left panel creation failed:', error);
         throw error;
       }
 
-      // ── Controls panel (right, 340px)
+      // ── Viewport (center, takes remaining width)
+      this.overlay.appendChild(viewport);
+      console.log('✅ Viewport assembled');
+
+      // ── Controls panel (right, 340px) — last child for flex row layout
       try {
         console.log('🔨 Starting buildPanel()...');
         const panel = this.buildPanel();
-        console.log('✅ Right panel created, appending...');
         this.overlay.appendChild(panel);
-        console.log('✅ Right panel appended to overlay');
+        console.log('✅ Right panel appended');
       } catch (error) {
         console.error('❌ Right panel creation failed:', error);
         throw error;
@@ -1137,9 +1136,9 @@ export class Studio {
   private bootThree() {
     try {
       console.log('🎮 bootThree() — initializing Three.js FBO system');
-      
-      const w = 100;
-      const h = 100;
+
+      const w = this.threeCanvas.width || window.innerWidth || 1920;
+      const h = this.threeCanvas.height || window.innerHeight || 1080;
 
       try {
         this.threeScene = new THREE.Scene();
