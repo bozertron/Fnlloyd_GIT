@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { StudioRecorder } from '../engine/studio-recorder';
+import { GlyphSampler, padOrTruncate } from '../engine/glyph-sampler';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -365,6 +366,23 @@ export class Studio {
   private stopButton!: HTMLButtonElement;
   private exportButton!: HTMLButtonElement;
 
+  // ── Morph Presets
+  private morphPresetSelect!: HTMLSelectElement;
+  private morphTextInput!: HTMLInputElement;
+  private glyphSampler = new GlyphSampler();
+
+  // ── TEXT MODE (Phase 4)
+  private textModeInput!: HTMLInputElement;
+  private textPointDensitySlider!: HTMLInputElement;
+  private textPointDensityNumber!: HTMLInputElement;
+  private textFontSelect!: HTMLSelectElement;
+  private textRenderButton!: HTMLButtonElement;
+  private textHoldButton!: HTMLButtonElement;
+  private textScatterButton!: HTMLButtonElement;
+  private textStatusLabel!: HTMLElement;
+  private fontFileInput!: HTMLInputElement;
+  private currentFontName = 'VT323 (Default)';
+
   // ─── PUBLIC API ─────────────────────────────────────────────────────────────
 
   init() {
@@ -372,6 +390,12 @@ export class Studio {
     this.bootThree();
     this.bootParticlesJS();
     this.bootSprite();
+    
+    // Load default font for TEXT MODE
+    this.glyphSampler.loadFont('/fonts/VT323-Regular.ttf').catch(err => {
+      console.warn('Could not load default VT323 font:', err);
+    });
+    
     console.log('🎬 Studio initialized — all engines standing by');
   }
 
@@ -906,6 +930,156 @@ export class Studio {
       this.morphEasingSelect,
       morphButtonsRow,
       progressContainer,
+    ]));
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Section: TEXT MODE (4A, 4B)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    // Text input field
+    const textInputLabel = document.createElement('div');
+    textInputLabel.textContent = 'TEXT INPUT';
+    Object.assign(textInputLabel.style, { color: '#ccc', fontSize: '13px', marginBottom: '4px' });
+    this.textModeInput = document.createElement('input');
+    this.textModeInput.type = 'text';
+    this.textModeInput.maxLength = 12;
+    this.textModeInput.placeholder = 'TYPE TO MORPH';
+    Object.assign(this.textModeInput.style, {
+      width: '100%', padding: '8px', background: '#0a0805', color: '#F4C430',
+      border: '1px solid #C5A028', borderRadius: '4px', marginBottom: '10px',
+      fontFamily: "'VT323', monospace", fontSize: '18px', boxSizing: 'border-box',
+    });
+    this.textModeInput.oninput = () => this.updateTextModeControls();
+
+    // Point Density slider
+    const pointDensityLabel = document.createElement('div');
+    pointDensityLabel.textContent = 'POINT DENSITY';
+    Object.assign(pointDensityLabel.style, { color: '#ccc', fontSize: '13px', marginBottom: '4px' });
+    
+    const pointDensityRow = document.createElement('div');
+    Object.assign(pointDensityRow.style, { display: 'flex', gap: '8px', marginBottom: '10px' });
+    
+    this.textPointDensitySlider = document.createElement('input');
+    this.textPointDensitySlider.type = 'range';
+    this.textPointDensitySlider.min = '500';
+    this.textPointDensitySlider.max = '20000';
+    this.textPointDensitySlider.step = '500';
+    this.textPointDensitySlider.value = '5000';
+    Object.assign(this.textPointDensitySlider.style, { flex: '1' });
+    this.textPointDensitySlider.oninput = () => {
+      this.textPointDensityNumber.value = this.textPointDensitySlider.value;
+      this.updateTextModeControls();
+    };
+    
+    this.textPointDensityNumber = document.createElement('input');
+    this.textPointDensityNumber.type = 'number';
+    this.textPointDensityNumber.value = '5000';
+    this.textPointDensityNumber.min = '500';
+    this.textPointDensityNumber.max = '20000';
+    this.textPointDensityNumber.step = '500';
+    Object.assign(this.textPointDensityNumber.style, {
+      width: '70px', padding: '4px', background: '#0a0805', color: '#F4C430',
+      border: '1px solid #C5A028', borderRadius: '4px', boxSizing: 'border-box',
+    });
+    this.textPointDensityNumber.oninput = () => {
+      this.textPointDensitySlider.value = this.textPointDensityNumber.value;
+      this.updateTextModeControls();
+    };
+    
+    pointDensityRow.appendChild(this.textPointDensitySlider);
+    pointDensityRow.appendChild(this.textPointDensityNumber);
+
+    // Font selector
+    const fontLabel = document.createElement('div');
+    fontLabel.textContent = 'FONT';
+    Object.assign(fontLabel.style, { color: '#ccc', fontSize: '13px', marginBottom: '4px' });
+    this.textFontSelect = document.createElement('select');
+    Object.assign(this.textFontSelect.style, {
+      width: '100%', padding: '6px', background: '#0a0805', color: '#F4C430',
+      border: '1px solid #C5A028', borderRadius: '4px', marginBottom: '10px',
+    });
+    const fontOptions = [
+      { value: '/fonts/VT323-Regular.ttf', label: 'VT323 (Default)' },
+      { value: '/fonts/MarcellusSC-Regular.ttf', label: 'Marcellus SC' },
+      { value: 'custom', label: 'Load Font File...' },
+    ];
+    fontOptions.forEach(opt => {
+      const option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      this.textFontSelect.appendChild(option);
+    });
+    this.textFontSelect.onchange = async () => {
+      if (this.textFontSelect.value === 'custom') {
+        this.fontFileInput?.click();
+      } else {
+        try {
+          await this.glyphSampler.loadFont(this.textFontSelect.value);
+          this.currentFontName = this.textFontSelect.options[this.textFontSelect.selectedIndex].text;
+          this.updateTextModeControls();
+        } catch (err) {
+          console.error('Failed to load font:', err);
+          this.textStatusLabel.textContent = 'Font load failed';
+        }
+      }
+    };
+
+    // Hidden file input for custom font
+    this.fontFileInput = document.createElement('input');
+    this.fontFileInput.type = 'file';
+    this.fontFileInput.accept = '.ttf,.otf,.woff';
+    Object.assign(this.fontFileInput.style, { display: 'none' });
+    this.fontFileInput.onchange = () => this.handleFontFileSelect();
+
+    // Render Text button
+    this.textRenderButton = document.createElement('button');
+    this.textRenderButton.textContent = '🔤 RENDER TEXT';
+    Object.assign(this.textRenderButton.style, {
+      width: '100%', background: '#C5A028', border: 'none', color: '#050505',
+      padding: '10px', borderRadius: '4px', cursor: 'pointer', fontSize: '14px',
+      fontWeight: 'bold', marginBottom: '8px',
+    });
+    this.textRenderButton.onclick = () => this.renderText();
+
+    // Hold Shape button
+    this.textHoldButton = document.createElement('button');
+    this.textHoldButton.textContent = '⏸ HOLD SHAPE';
+    Object.assign(this.textHoldButton.style, {
+      width: '100%', background: 'rgba(197,160,40,0.2)', border: '1px solid #C5A028',
+      color: '#C5A028', padding: '8px', borderRadius: '4px', cursor: 'pointer',
+      fontSize: '13px', marginBottom: '8px',
+    });
+    this.textHoldButton.onclick = () => this.holdShape();
+
+    // Scatter button
+    this.textScatterButton = document.createElement('button');
+    this.textScatterButton.textContent = '💥 SCATTER';
+    Object.assign(this.textScatterButton.style, {
+      width: '100%', background: 'rgba(197,160,40,0.2)', border: '1px solid #C5A028',
+      color: '#C5A028', padding: '8px', borderRadius: '4px', cursor: 'pointer',
+      fontSize: '13px', marginBottom: '10px',
+    });
+    this.textScatterButton.onclick = () => this.scatterParticles();
+
+    // Status label
+    this.textStatusLabel = document.createElement('div');
+    this.textStatusLabel.textContent = 'Ready';
+    Object.assign(this.textStatusLabel.style, {
+      color: '#888', fontSize: '12px', textAlign: 'center',
+    });
+
+    body.appendChild(this.buildLeftSection('🔤 TEXT MODE', [
+      textInputLabel,
+      this.textModeInput,
+      pointDensityLabel,
+      pointDensityRow,
+      fontLabel,
+      this.textFontSelect,
+      this.fontFileInput,
+      this.textRenderButton,
+      this.textHoldButton,
+      this.textScatterButton,
+      this.textStatusLabel,
     ]));
 
     panel.appendChild(body);
@@ -2064,5 +2238,248 @@ export class Studio {
       }
     };
     progressLoop();
+  }
+
+  // ─── TEXT MODE METHODS (Phase 4) ─────────────────────────────────────────────
+
+  /** Update TEXT MODE UI controls when text or point density changes */
+  private updateTextModeControls() {
+    const text = this.textModeInput?.value || '';
+    const pointCount = parseInt(this.textPointDensityNumber?.value || '5000');
+    const hasText = text.length > 0;
+    const fontLoaded = this.glyphSampler.isLoaded();
+
+    // Enable/disable render button
+    if (this.textRenderButton) {
+      this.textRenderButton.disabled = !hasText || !fontLoaded;
+      this.textRenderButton.style.opacity = (!hasText || !fontLoaded) ? '0.5' : '1';
+    }
+
+    // Update status
+    if (this.textStatusLabel) {
+      if (!fontLoaded) {
+        this.textStatusLabel.textContent = 'Loading font...';
+      } else if (hasText) {
+        this.textStatusLabel.textContent = `${text.length} chars • ${pointCount.toLocaleString()} points`;
+      } else {
+        this.textStatusLabel.textContent = 'Enter text to morph';
+      }
+    }
+
+    // Update font selector to show current font
+    if (this.textFontSelect) {
+      for (let i = 0; i < this.textFontSelect.options.length; i++) {
+        const opt = this.textFontSelect.options[i];
+        if (opt.text === this.currentFontName) {
+          this.textFontSelect.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  /** Handle custom font file upload */
+  private async handleFontFileSelect() {
+    const files = this.fontFileInput?.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    this.textStatusLabel.textContent = `Loading ${file.name}...`;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      this.glyphSampler.loadFontFromBuffer(buffer);
+      this.currentFontName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      
+      // Add to font options if not already there
+      let found = false;
+      for (let i = 0; i < this.textFontSelect.options.length; i++) {
+        if (this.textFontSelect.options[i].text === this.currentFontName) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        const option = document.createElement('option');
+        option.value = 'custom';
+        option.textContent = this.currentFontName;
+        this.textFontSelect.insertBefore(option, this.textFontSelect.options[this.textFontSelect.options.length - 1]);
+      }
+      
+      this.textFontSelect.value = 'custom';
+      this.updateTextModeControls();
+      this.textStatusLabel.textContent = `Loaded: ${this.currentFontName}`;
+    } catch (err) {
+      console.error('Failed to load font file:', err);
+      this.textStatusLabel.textContent = 'Font load failed';
+    }
+  }
+
+  /** Render text and morph particles to text shape */
+  renderText() {
+    const text = this.textModeInput?.value;
+    if (!text || text.length === 0) {
+      this.textStatusLabel.textContent = 'Enter text first';
+      return;
+    }
+
+    const pointCount = parseInt(this.textPointDensityNumber?.value || '5000');
+
+    try {
+      // Sample text into points
+      const textPositions = this.glyphSampler.sampleString(text, pointCount);
+
+      // Get current particle count from geometry
+      const currentPositions = this.threePoints?.geometry.attributes.position.array as Float32Array;
+      if (!currentPositions) {
+        this.textStatusLabel.textContent = 'No particle system';
+        return;
+      }
+
+      const currentPointCount = currentPositions.length / 3;
+
+      // Ensure point count parity using imported padOrTruncate
+      const adjustedPositions = padOrTruncate(textPositions, currentPointCount);
+
+      // Create capture slot for text
+      const textSlot: CaptureSlot = {
+        id: generateUUID(),
+        label: `TEXT: ${text}`,
+        positions: adjustedPositions,
+        color: new THREE.Color(0xF4C430), // Gold
+        pointSize: this.shaderMat?.uniforms?.uPointSize?.value || 2,
+        opacity: this.shaderMat?.uniforms?.uOpacity?.value || 1,
+        proximity: this.shaderMat?.uniforms?.uProximity?.value || 0.5,
+        timestamp: Date.now(),
+      };
+
+      // Add to capture slots
+      this.captureSlots.push(textSlot);
+      this.updateCaptureSlotsList();
+      this.updateMorphDropdowns();
+
+      // Get current positions as source
+      const sourcePositions = new Float32Array(currentPositions);
+
+      // Set up morph
+      const geo = this.threePoints?.geometry;
+      if (!geo || !this.shaderMat) {
+        this.textStatusLabel.textContent = 'No particle system';
+        return;
+      }
+      this.morphController.setGeometry(geo, this.shaderMat);
+      
+      // Create source slot from current state
+      const sourceSlot: CaptureSlot = {
+        id: generateUUID(),
+        label: 'Current',
+        positions: sourcePositions,
+        color: new THREE.Color(0xffffff),
+        pointSize: this.shaderMat.uniforms.uPointSize.value,
+        opacity: this.shaderMat.uniforms.uOpacity.value,
+        proximity: this.shaderMat.uniforms.uProximity.value,
+        timestamp: Date.now(),
+      };
+
+      this.morphController.setSource(sourceSlot);
+      this.morphController.setTarget(textSlot);
+
+      // Play morph
+      this.morphController.play(2000, 'easeInOut');
+
+      // Update progress bar
+      const updateProgress = () => {
+        const progress = this.morphController.getProgress();
+        const fill = this.morphProgressBar?.querySelector('div');
+        if (fill) fill.style.width = `${progress * 100}%`;
+      };
+
+      const progressLoop = () => {
+        if (this.morphController.getProgress() < 1) {
+          updateProgress();
+          requestAnimationFrame(progressLoop);
+        }
+      };
+      progressLoop();
+
+      this.textStatusLabel.textContent = `Morphing to "${text}"...`;
+
+    } catch (err) {
+      console.error('Render text failed:', err);
+      this.textStatusLabel.textContent = 'Render failed';
+    }
+  }
+
+  /** Hold the current shape during morph */
+  holdShape() {
+    this.morphController.stop();
+    this.textStatusLabel.textContent = 'Shape held';
+  }
+
+  /** Scatter particles into sphere shape */
+  scatterParticles() {
+    const currentPositions = this.threePoints?.geometry.attributes.position.array as Float32Array;
+    if (!currentPositions) {
+      this.textStatusLabel.textContent = 'No particle system';
+      return;
+    }
+
+    const pointCount = currentPositions.length / 3;
+
+    // Generate sphere points
+    const spherePositions = new Float32Array(pointCount * 3);
+    const radius = 1.2;
+
+    for (let i = 0; i < pointCount; i++) {
+      // Random point on sphere surface
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      
+      spherePositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      spherePositions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      spherePositions[i * 3 + 2] = radius * Math.cos(phi);
+    }
+
+    // Create capture slot
+    const sphereSlot: CaptureSlot = {
+      id: generateUUID(),
+      label: 'SPHERE',
+      positions: spherePositions,
+      color: new THREE.Color(0xF4C430),
+      pointSize: this.shaderMat.uniforms.uPointSize.value,
+      opacity: this.shaderMat.uniforms.uOpacity.value,
+      proximity: this.shaderMat.uniforms.uProximity.value,
+      timestamp: Date.now(),
+    };
+
+    this.captureSlots.push(sphereSlot);
+    this.updateCaptureSlotsList();
+    this.updateMorphDropdowns();
+
+    // Get current positions as source
+    const sourcePositions = new Float32Array(currentPositions);
+    const sourceSlot: CaptureSlot = {
+      id: generateUUID(),
+      label: 'Current',
+      positions: sourcePositions,
+      color: new THREE.Color(0xffffff),
+      pointSize: this.shaderMat.uniforms.uPointSize.value,
+      opacity: this.shaderMat.uniforms.uOpacity.value,
+      proximity: this.shaderMat.uniforms.uProximity.value,
+      timestamp: Date.now(),
+    };
+
+    // Set up morph
+    const geo = this.threePoints?.geometry;
+    if (!geo || !this.shaderMat) {
+      this.textStatusLabel.textContent = 'No particle system';
+      return;
+    }
+    this.morphController.setGeometry(geo, this.shaderMat);
+    this.morphController.setSource(sourceSlot);
+    this.morphController.setTarget(sphereSlot);
+    this.morphController.play(1500, 'bounce');
+
+    this.textStatusLabel.textContent = 'Scattering...';
   }
 }
