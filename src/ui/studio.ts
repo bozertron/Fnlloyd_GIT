@@ -11,294 +11,29 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { StudioRecorder } from '../engine/studio-recorder';
 import { GlyphSampler, padOrTruncate } from '../engine/glyph-sampler';
 
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// ─── Extracted Modules ──────────────────────────────────────────────────────────
+import { type CaptureSlot, MorphController, generateUUID } from './studio-morph';
+import { VERT_PARTICLES, FRAG_PARTICLES } from './studio-shaders';
+import { PETS } from './studio-pets';
+import {
+  buildSection, buildSlider, buildColorRow, buildToggleRow,
+  buildDropdown, buildFileRow, buildInfo, buildButtonRow,
+  buildSliderWithNumber, hexToRgb,
+} from './studio-ui-helpers';
+import { StudioParticles } from './studio-particles';
+import { StudioSprite } from './studio-sprite';
 
-/** Captured particle state that can be used as morph source or target */
-export interface CaptureSlot {
-  id: string;
-  label: string;
-  positions: Float32Array;
-  color: THREE.Color;
-  pointSize: number;
-  opacity: number;
-  proximity: number;
-  timestamp: number;
-}
-
-// Simple UUID generator
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-// ─── MorphController ───────────────────────────────────────────────────────────
-
-type EasingFn = (t: number) => number;
-
-const EASINGS: Record<string, EasingFn> = {
-  linear: (t) => t,
-  easeInOut: (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
-  spring: (t) => {
-    const c4 = (2 * Math.PI) / 3;
-    return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
-  },
-  bounce: (t) => {
-    const n1 = 7.5625, d1 = 2.75;
-    if (t < 1 / d1) return n1 * t * t;
-    if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
-    if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
-    return n1 * (t -= 2.625 / d1) * t + 0.984375;
-  },
-};
-
-/** Controls morphing between two CaptureSlots */
-export class MorphController {
-  private geometry: THREE.BufferGeometry | null = null;
-  private material: THREE.ShaderMaterial | null = null;
-  private positionAAttr: THREE.BufferAttribute | null = null;
-  private positionBAttr: THREE.BufferAttribute | null = null;
-  private morphProgress = 0;
-  private animationId: number | null = null;
-  private isPlaying = false;
-  private direction = 1;
-  public onComplete: (() => void) | null = null;
-
-  setGeometry(geo: THREE.BufferGeometry, mat: THREE.ShaderMaterial) {
-    this.geometry = geo;
-    this.material = mat;
-
-    // Create morph position attributes
-    const count = geo.attributes.position.count;
-    const positionA = new Float32Array(count * 3);
-    const positionB = new Float32Array(count * 3);
-
-    // Initialize both with current positions
-    const currentPositions = geo.attributes.position.array as Float32Array;
-    positionA.set(currentPositions);
-    positionB.set(currentPositions);
-
-    this.positionAAttr = new THREE.BufferAttribute(positionA, 3);
-    this.positionBAttr = new THREE.BufferAttribute(positionB, 3);
-
-    geo.setAttribute('positionA', this.positionAAttr);
-    geo.setAttribute('positionB', this.positionBAttr);
-
-    // Initialize morph progress uniform
-    if (!mat.uniforms.uMorphProgress) {
-      mat.uniforms.uMorphProgress = { value: 0 };
-    }
-    if (!mat.uniforms.uProximity) {
-      mat.uniforms.uProximity = { value: 0.5 };
-    }
-  }
-
-  setSource(slot: CaptureSlot) {
-    if (!this.positionAAttr || !this.geometry) return;
-    const arr = this.positionAAttr.array as Float32Array;
-    arr.set(slot.positions);
-    this.positionAAttr.needsUpdate = true;
-  }
-
-  setTarget(slot: CaptureSlot) {
-    if (!this.positionBAttr || !this.geometry) return;
-    const arr = this.positionBAttr.array as Float32Array;
-    arr.set(slot.positions);
-    this.positionBAttr.needsUpdate = true;
-  }
-
-  play(durationMs: number, easingName: string = 'linear') {
-    if (!this.material) return;
-    this.stop();
-    this.direction = 1;
-    this.isPlaying = true;
-    const easing = EASINGS[easingName] || EASINGS.linear;
-    const startTime = performance.now();
-
-    const animate = () => {
-      if (!this.isPlaying) return;
-      const elapsed = performance.now() - startTime;
-      const rawT = Math.min(elapsed / durationMs, 1);
-      const easedT = easing(rawT);
-      this.morphProgress = easedT;
-      this.material!.uniforms.uMorphProgress.value = easedT;
-
-      if (rawT < 1) {
-        this.animationId = requestAnimationFrame(animate);
-      } else {
-        this.isPlaying = false;
-        this.onComplete?.();
-      }
-    };
-
-    this.animationId = requestAnimationFrame(animate);
-  }
-
-  reverse() {
-    if (!this.material) return;
-    this.stop();
-    this.direction = -1;
-    this.isPlaying = true;
-    const startProgress = this.morphProgress;
-    const durationMs = 2000; // Default reverse duration
-    const startTime = performance.now();
-
-    const animate = () => {
-      if (!this.isPlaying) return;
-      const elapsed = performance.now() - startTime;
-      const rawT = Math.min(elapsed / durationMs, 1);
-      this.morphProgress = startProgress * (1 - rawT);
-      this.material!.uniforms.uMorphProgress.value = this.morphProgress;
-
-      if (rawT < 1) {
-        this.animationId = requestAnimationFrame(animate);
-      } else {
-        this.isPlaying = false;
-        this.onComplete?.();
-      }
-    };
-
-    this.animationId = requestAnimationFrame(animate);
-  }
-
-  stop() {
-    this.isPlaying = false;
-    if (this.animationId !== null) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
-    }
-  }
-
-  getProgress(): number {
-    return this.morphProgress;
-  }
-
-  setProgress(t: number) {
-    this.morphProgress = Math.max(0, Math.min(1, t));
-    if (this.material) {
-      this.material.uniforms.uMorphProgress.value = this.morphProgress;
-    }
-  }
-
-  /** Get the current interpolated positions */
-  getCurrentPositions(): Float32Array | null {
-    if (!this.geometry || !this.positionAAttr || !this.positionBAttr) {
-      return null;
-    }
-    
-    const count = this.geometry.attributes.position.count;
-    const result = new Float32Array(count * 3);
-    const posA = this.positionAAttr.array as Float32Array;
-    const posB = this.positionBAttr.array as Float32Array;
-    const t = this.morphProgress;
-    
-    for (let i = 0; i < count * 3; i++) {
-      result[i] = posA[i] + (posB[i] - posA[i]) * t;
-    }
-    
-    return result;
-  }
-}
-
-// ─── FBO Curl-Noise Vertex Shader (from libs/FBO-Particles) ───────────────────
-// Updated with morph support and proximity control
-const VERT_PARTICLES = /* glsl */`
-  uniform float uTime;
-  uniform float uFrequency;
-  uniform float uAmplitude;
-  uniform float uMaxDistance;
-  uniform float uPointSize;
-  uniform float uOpacity;
-  uniform float uProximity;
-  uniform float uMorphProgress;
-
-  attribute vec3 positionA;
-  attribute vec3 positionB;
-
-  vec3 mod289v3(vec3 x){ return x - floor(x*(1./289.))*289.; }
-  vec2 mod289v2(vec2 x){ return x - floor(x*(1./289.))*289.; }
-  vec3 permute3(vec3 x){ return mod289v3(((x*34.)+1.)*x); }
-  float snoise(vec2 v){
-    const vec4 C=vec4(.211324865405187,.366025403784439,-.577350269189626,.024390243902439);
-    vec2 i=floor(v+dot(v,C.yy)), x0=v-i+dot(i,C.xx);
-    vec2 i1=(x0.x>x0.y)?vec2(1,0):vec2(0,1);
-    vec4 x12=x0.xyxy+C.xxzz; x12.xy-=i1;
-    i=mod289v2(i);
-    vec3 p=permute3(permute3(i.y+vec3(0,i1.y,1))+i.x+vec3(0,i1.x,1));
-    vec3 m=max(.5-vec3(dot(x0,x0),dot(x12.xy,x12.xy),dot(x12.zw,x12.zw)),0.);
-    m=m*m; m=m*m;
-    vec3 gx=2.*fract(p*C.www)-1., gh=abs(gx)-.5, gox=floor(gx+.5), ga=gx-gox;
-    m*=1.79284291400159-.85373472095314*(ga*ga+gh*gh);
-    vec3 g; g.x=ga.x*x0.x+gh.x*x0.y; g.yz=ga.yz*x12.xz+gh.yz*x12.yw;
-    return 130.*dot(m,g);
-  }
-  vec3 curl(float x,float y,float z){
-    float eps=1.,eps2=2.*eps, n1,n2,a,b;
-    x+=uTime*.05; y+=uTime*.05; z+=uTime*.05;
-    vec3 c=vec3(0.);
-    n1=snoise(vec2(x,y+eps)); n2=snoise(vec2(x,y-eps)); a=(n1-n2)/eps2;
-    n1=snoise(vec2(x,z+eps)); n2=snoise(vec2(x,z-eps)); b=(n1-n2)/eps2; c.x=a-b;
-    n1=snoise(vec2(y,z+eps)); n2=snoise(vec2(y,z-eps)); a=(n1-n2)/eps2;
-    n1=snoise(vec2(x+eps,z)); n2=snoise(vec2(x-eps,z)); b=(n1-n2)/eps2; c.y=a-b;
-    n1=snoise(vec2(x+eps,y)); n2=snoise(vec2(x-eps,y)); a=(n1-n2)/eps2;
-    n1=snoise(vec2(y+eps,z)); n2=snoise(vec2(y-eps,z)); b=(n1-n2)/eps2; c.z=a-b;
-    return c;
-  }
-  void main(){
-    // Morph between positionA and positionB
-    vec3 p = mix(positionA, positionB, uMorphProgress);
-    // Apply curl-noise displacement
-    vec3 target = p + curl(p.x*uFrequency, p.y*uFrequency, p.z*uFrequency) * uAmplitude;
-    // Proximity: lerp between mesh vertex (p) and curl-displaced (target)
-    p = mix(target, p, uProximity);
-    float d = length(p - target) / uMaxDistance;
-    p = mix(target, p, pow(d, 5.));
-    vec4 mv = modelViewMatrix * vec4(p, 1.);
-    gl_PointSize = uPointSize * (1. / -mv.z);
-    gl_Position = projectionMatrix * mv;
-  }
-`;
-
-const FRAG_PARTICLES = /* glsl */`
-  uniform vec3 uColor;
-  uniform float uTime;
-  uniform float uOpacity;
-  void main(){
-    float d=length(gl_PointCoord-.5)*2.;
-    if(d>1.) discard;
-    float alpha=1.-smoothstep(.5,1.,d);
-    gl_FragColor=vec4(uColor,alpha*uOpacity);
-  }
-`;
-
-// ─── WindowPet sprite configs ──────────────────────────────────────────────────
-interface PetConfig {
-  label: string;
-  src: string;
-  frameSize: number;
-  walkRow: number;   // 1-based row index
-  walkFrames: number;
-  idleRow: number;
-  idleFrames: number;
-}
-
-const PETS: PetConfig[] = [
-  { label: 'Pusheen',      src: '/libs/pets/Pusheen.png',      frameSize: 128, walkRow: 2, walkFrames: 4, idleRow: 1, idleFrames: 1 },
-  { label: 'Slugcat',      src: '/libs/pets/slugcat.png',      frameSize: 64,  walkRow: 1, walkFrames: 4, idleRow: 1, idleFrames: 1 },
-  { label: 'Gengar',       src: '/libs/pets/Gengar.png',       frameSize: 128, walkRow: 2, walkFrames: 4, idleRow: 1, idleFrames: 1 },
-  { label: 'PunishingBird',src: '/libs/pets/PunishingBird.png',frameSize: 128, walkRow: 2, walkFrames: 4, idleRow: 1, idleFrames: 1 },
-];
+// Re-export for external consumers (menus.ts imports CaptureSlot)
+export type { CaptureSlot };
 
 // ─── Studio class ──────────────────────────────────────────────────────────────
 export class Studio {
   // Overlay root
   private overlay!: HTMLElement;
 
-  // ── particles.js layer
+  // ── particles.js layer (delegated to StudioParticles)
   private pjsDiv!: HTMLDivElement;
-  private pjsLoaded = false;
+  private particles!: StudioParticles;
 
   // ── Three.js layer
   private threeCanvas!: HTMLCanvasElement;
@@ -310,16 +45,10 @@ export class Studio {
   private shaderMat!: THREE.ShaderMaterial;
   private threeRunning = false;
 
-  // ── WindowPet / sprite layer
+  // ── WindowPet / sprite layer (delegated to StudioSprite)
   private spriteCanvas!: HTMLCanvasElement;
   private spriteCtx!: CanvasRenderingContext2D;
-  private petImg = new Image();
-  private petCfg: PetConfig = PETS[0];
-  private petFrame = 0;
-  private petX = 200;
-  private petY = 400;
-  private petDir = 1;
-  private petAnimTimer = 0;
+  private sprite!: StudioSprite;
 
   // ── Studio state
   private isVisible = false;
@@ -390,8 +119,10 @@ export class Studio {
       console.log('🎬 Studio.init() — starting initialization');
       this.buildDOM();
       this.bootThree();
-      this.bootParticlesJS();
-      this.bootSprite();
+      this.particles = new StudioParticles(this.pjsDiv);
+      this.particles.boot();
+      this.sprite = new StudioSprite(this.spriteCanvas, this.spriteCtx);
+      this.sprite.boot();
       
       // Load default font for TEXT MODE
       this.glyphSampler.loadFont('/fonts/VT323-Regular.ttf').catch(err => {
@@ -401,7 +132,6 @@ export class Studio {
       console.log('✅ Studio initialized — all engines standing by');
     } catch (error) {
       console.error('❌ CRITICAL: Studio.init() failed:', error);
-      // Don't rethrow - allow app to continue even if Studio partially fails
     }
   }
 
@@ -416,7 +146,6 @@ export class Studio {
       console.log('✅ Studio.show() — running');
     } catch (error) {
       console.error('❌ Studio.show() failed:', error);
-      // Don't rethrow - allow graceful degradation
     }
   }
 
@@ -430,7 +159,6 @@ export class Studio {
       console.log('✅ Studio.hide() — hidden');
     } catch (error) {
       console.error('❌ Studio.hide() failed:', error);
-      // Don't rethrow - allow graceful degradation
     }
   }
 
@@ -446,8 +174,8 @@ export class Studio {
         position: 'fixed',
         left: '0',
         top: '0',
-        width: '1920px',
-        height: '1080px',
+        width: '100vw',
+        height: '100vh',
         display: 'none', 
         flexDirection: 'row',
         background: '#050505', 
@@ -553,28 +281,27 @@ export class Studio {
         throw error;
       }
 
-      this.overlay.appendChild(viewport);
-      console.log('✅ Viewport assembled');
-
-      // ── Left panel (340px)
+      // ── Left panel (340px) — must be first child for flex row layout
       try {
         console.log('🔨 Starting buildLeftPanel()...');
         const leftPanel = this.buildLeftPanel();
-        console.log('✅ Left panel created, appending...');
         this.overlay.appendChild(leftPanel);
-        console.log('✅ Left panel appended to overlay');
+        console.log('✅ Left panel appended');
       } catch (error) {
         console.error('❌ Left panel creation failed:', error);
         throw error;
       }
 
-      // ── Controls panel (right, 340px)
+      // ── Viewport (center, takes remaining width)
+      this.overlay.appendChild(viewport);
+      console.log('✅ Viewport assembled');
+
+      // ── Controls panel (right, 340px) — last child for flex row layout
       try {
         console.log('🔨 Starting buildPanel()...');
         const panel = this.buildPanel();
-        console.log('✅ Right panel created, appending...');
         this.overlay.appendChild(panel);
-        console.log('✅ Right panel appended to overlay');
+        console.log('✅ Right panel appended');
       } catch (error) {
         console.error('❌ Right panel creation failed:', error);
         throw error;
@@ -660,7 +387,6 @@ export class Studio {
       // Don't rethrow - allow partial initialization to continue
     }
   }
-
   private handleResize() {
     try {
       const vw = this.threeCanvas.parentElement?.clientWidth ?? 1920;
@@ -740,39 +466,39 @@ export class Studio {
     body.appendChild(this.buildRecorderSection());
 
     // ── Section: Three.js / FBO
-    body.appendChild(this.buildSection('🌀 FBO PARTICLES (Three.js)', [
-      this.buildSlider('Particle Size', 1, 200, 80, 1, v => this.shaderMat.uniforms.uPointSize.value = v),
-      this.buildSlider('Particle Opacity', 0.05, 1, 0.9, 0.01, v => this.shaderMat.uniforms.uOpacity.value = v),
-      this.buildSlider('Frequency', 0, 20, 0.33, 0.01, v => this.shaderMat.uniforms.uFrequency.value = v),
-      this.buildSlider('Amplitude', 0, 20, 4.5,  0.01, v => this.shaderMat.uniforms.uAmplitude.value = v),
-      this.buildSlider('Max Dist',  0, 20, 7.2,  0.01, v => this.shaderMat.uniforms.uMaxDistance.value = v),
-      this.buildColorRow('Particle Color', '#C5A028', c => {
-        const rgb = this.hexToRgb(c);
+    body.appendChild(buildSection('🌀 FBO PARTICLES (Three.js)', [
+      buildSlider('Particle Size', 1, 200, 80, 1, v => this.shaderMat.uniforms.uPointSize.value = v),
+      buildSlider('Particle Opacity', 0.05, 1, 0.9, 0.01, v => this.shaderMat.uniforms.uOpacity.value = v),
+      buildSlider('Frequency', 0, 20, 0.33, 0.01, v => this.shaderMat.uniforms.uFrequency.value = v),
+      buildSlider('Amplitude', 0, 20, 4.5,  0.01, v => this.shaderMat.uniforms.uAmplitude.value = v),
+      buildSlider('Max Dist',  0, 20, 7.2,  0.01, v => this.shaderMat.uniforms.uMaxDistance.value = v),
+      buildColorRow('Particle Color', '#C5A028', c => {
+        const rgb = hexToRgb(c);
         this.shaderMat.uniforms.uColor.value.set(rgb.r / 255, rgb.g / 255, rgb.b / 255);
       }),
-      this.buildFileRow('Load Model (.glb/.gltf)', '.glb,.gltf', f => this.loadUserModel(f)),
+      buildFileRow('Load Model (.glb/.gltf)', '.glb,.gltf', f => this.loadUserModel(f)),
     ]));
 
     // ── Section: particles.js
-    body.appendChild(this.buildSection('✨ PARTICLES.JS (Background)', [
-      this.buildSlider('Count', 20, 400, 120, 1, v => this.respawnParticlesJS({ count: v })),
-      this.buildSlider('Particle Size', 1, 20, 3, 0.5, v => this.respawnParticlesJS({ particleSize: v })),
-      this.buildSlider('Particle Opacity', 0.05, 1, 0.7, 0.01, v => this.respawnParticlesJS({ particleOpacity: v })),
-      this.buildColorRow('Color', '#C5A028', c => this.respawnParticlesJS({ color: c })),
-      this.buildToggleRow('Connect Lines', true, on => this.respawnParticlesJS({ lines: on })),
-      this.buildToggleRow('Mouse Attract', true, on => this.respawnParticlesJS({ attract: on })),
+    body.appendChild(buildSection('✨ PARTICLES.JS (Background)', [
+      buildSlider('Count', 20, 400, 120, 1, v => this.particles.respawn({ count: v })),
+      buildSlider('Particle Size', 1, 20, 3, 0.5, v => this.particles.respawn({ particleSize: v })),
+      buildSlider('Particle Opacity', 0.05, 1, 0.7, 0.01, v => this.particles.respawn({ particleOpacity: v })),
+      buildColorRow('Color', '#C5A028', c => this.particles.respawn({ color: c })),
+      buildToggleRow('Connect Lines', true, on => this.particles.respawn({ lines: on })),
+      buildToggleRow('Mouse Attract', true, on => this.particles.respawn({ attract: on })),
     ]));
 
     // ── Section: WindowPet sprites
-    body.appendChild(this.buildSection('🐱 WINDOWPET (Sprite Layer)', [
-      this.buildDropdown('Character', PETS.map(p => p.label), 0, i => this.switchPet(i)),
-      this.buildSlider('Pet Scale', 0.5, 4, 1, 0.1, v => { this.petScale = v; }),
-      this.buildToggleRow('Show Sprite', true, on => { this.spriteVisible = on; }),
+    body.appendChild(buildSection('🐱 WINDOWPET (Sprite Layer)', [
+      buildDropdown('Character', PETS.map(p => p.label), 0, i => this.sprite.switchPet(i)),
+      buildSlider('Pet Scale', 0.5, 4, 1, 0.1, v => { this.sprite.petScale = v; }),
+      buildToggleRow('Show Sprite', true, on => { this.sprite.visible = on; }),
     ]));
 
     // ── Section: Model loader info
-    body.appendChild(this.buildSection('📁 DEFAULT MODEL', [
-      this.buildInfo('Loaded: T-Rex (FBO-Particles default)\nDrop any .glb above to replace.\nParticles conform to mesh vertices.'),
+    body.appendChild(buildSection('📁 DEFAULT MODEL', [
+      buildInfo('Loaded: T-Rex (FBO-Particles default)\nDrop any .glb above to replace.\nParticles conform to mesh vertices.'),
     ]));
 
     panel.appendChild(body);
@@ -801,7 +527,6 @@ export class Studio {
     
     return panel;
   }
-
   // ─── LEFT PANEL ─────────────────────────────────────────────────────────────
 
   private buildLeftPanel(): HTMLElement {
@@ -831,18 +556,18 @@ export class Studio {
     Object.assign(body.style, { flex: '1', overflowY: 'auto', padding: '16px' });
 
     // Section: SCENE
-    body.appendChild(this.buildLeftSection('📷 SCENE', [
-      this.buildButtonRow('Reset Camera', () => this.resetCamera()),
-      this.buildToggleRow('Orbit Lock', false, on => { if (this.threeControls) this.threeControls.enableRotate = !on; }),
-      this.buildToggleRow('Axis Grid', true, on => this.toggleAxisGrid(on)),
+    body.appendChild(buildSection('📷 SCENE', [
+      buildButtonRow('Reset Camera', () => this.resetCamera()),
+      buildToggleRow('Orbit Lock', false, on => { if (this.threeControls) this.threeControls.enableRotate = !on; }),
+      buildToggleRow('Axis Grid', true, on => this.toggleAxisGrid(on)),
     ]));
 
     // Section: LAYERS
-    body.appendChild(this.buildLeftSection('🗂️ LAYERS', [
-      this.buildToggleRow('particles.js', true, on => this.toggleLayer('pjs', on)),
-      this.buildToggleRow('FBO', true, on => this.toggleLayer('fbo', on)),
-      this.buildToggleRow('Sprite', true, on => this.toggleLayer('sprite', on)),
-      this.buildToggleRow('Scanlines', true, on => this.toggleLayer('scanlines', on)),
+    body.appendChild(buildSection('🗂️ LAYERS', [
+      buildToggleRow('particles.js', true, on => this.toggleLayer('pjs', on)),
+      buildToggleRow('FBO', true, on => this.toggleLayer('fbo', on)),
+      buildToggleRow('Sprite', true, on => this.toggleLayer('sprite', on)),
+      buildToggleRow('Scanlines', true, on => this.toggleLayer('scanlines', on)),
     ]));
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -859,7 +584,7 @@ export class Studio {
     this.updateModelStatusBadge();
 
     // Pixel Proximity slider (horizontal)
-    const proximityRow = this.buildSliderWithNumber(
+    const proximityRow = buildSliderWithNumber(
       'PIXEL PROXIMITY', 0, 1, 0.5, 0.01,
       (v) => {
         this.shaderMat.uniforms.uProximity.value = v;
@@ -874,7 +599,7 @@ export class Studio {
     this.proximityNumber = proximityRow.number;
 
     // FBO Opacity - two-way bound slider + number
-    const opacityRow = this.buildSliderWithNumber(
+    const opacityRow = buildSliderWithNumber(
       'FBO OPACITY', 0.05, 1, 0.9, 0.01,
       (v) => {
         this.shaderMat.uniforms.uOpacity.value = v;
@@ -889,7 +614,7 @@ export class Studio {
     this.opacityNumber = opacityRow.number;
 
     // FBO Particle Size - two-way bound slider + number
-    const sizeRow = this.buildSliderWithNumber(
+    const sizeRow = buildSliderWithNumber(
       'FBO PARTICLE SIZE', 1, 200, 80, 1,
       (v) => {
         this.shaderMat.uniforms.uPointSize.value = v;
@@ -946,7 +671,7 @@ export class Studio {
     this.rotationYSlider = rotY.slider;
     this.rotationZSlider = rotZ.slider;
 
-    const resetRotationBtn = this.buildButtonRow('RESET ROTATION', () => {
+    const resetRotationBtn = buildButtonRow('RESET ROTATION', () => {
       this.modelRotationX = 0;
       this.modelRotationY = 0;
       this.modelRotationZ = 0;
@@ -991,7 +716,7 @@ export class Studio {
       padding: '4px',
     });
 
-    body.appendChild(this.buildLeftSection('🎯 MODEL TARGET', [
+    body.appendChild(buildSection('🎯 MODEL TARGET', [
       this.modelStatusBadge,
       proximityRow.container,
       opacityRow.container,
@@ -1098,7 +823,7 @@ export class Studio {
     progressContainer.appendChild(progressLabel);
     progressContainer.appendChild(this.morphProgressBar);
 
-    body.appendChild(this.buildLeftSection('🔄 MORPH', [
+    body.appendChild(buildSection('🔄 MORPH', [
       sourceLabel,
       this.morphSourceSelect,
       targetLabel,
@@ -1247,7 +972,7 @@ export class Studio {
       color: '#888', fontSize: '12px', textAlign: 'center',
     });
 
-    body.appendChild(this.buildLeftSection('🔤 TEXT MODE', [
+    body.appendChild(buildSection('🔤 TEXT MODE', [
       textInputLabel,
       this.textModeInput,
       pointDensityLabel,
@@ -1286,38 +1011,6 @@ export class Studio {
 
     return panel;
   }
-
-  private buildLeftSection(title: string, children: HTMLElement[]): HTMLElement {
-    const sec = document.createElement('div');
-    Object.assign(sec.style, { marginBottom: '20px' });
-    const h = document.createElement('div');
-    h.textContent = title;
-    Object.assign(h.style, {
-      color: '#C5A028', fontSize: '13px', fontWeight: 'bold',
-      letterSpacing: '2px', marginBottom: '10px',
-      borderBottom: '1px solid rgba(197,160,40,0.3)', paddingBottom: '6px',
-      fontFamily: "'Marcellus SC', serif",
-    });
-    sec.appendChild(h);
-    children.forEach(c => sec.appendChild(c));
-    return sec;
-  }
-
-  private buildButtonRow(label: string, cb: () => void): HTMLElement {
-    const row = document.createElement('div');
-    Object.assign(row.style, { marginBottom: '10px' });
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    Object.assign(btn.style, {
-      background: 'rgba(197,160,40,0.2)', border: '1px solid #C5A028',
-      color: '#C5A028', padding: '6px 12px', borderRadius: '4px',
-      cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit',
-    });
-    btn.onclick = cb;
-    row.appendChild(btn);
-    return row;
-  }
-
   private toggleLeftPanel() {
     try {
       console.log('🔄 toggleLeftPanel() — toggling left panel');
@@ -1443,9 +1136,9 @@ export class Studio {
   private bootThree() {
     try {
       console.log('🎮 bootThree() — initializing Three.js FBO system');
-      
-      const w = 100;
-      const h = 100;
+
+      const w = this.threeCanvas.width || window.innerWidth || 1920;
+      const h = this.threeCanvas.height || window.innerHeight || 1080;
 
       try {
         this.threeScene = new THREE.Scene();
@@ -1510,7 +1203,7 @@ export class Studio {
         const loader = new GLTFLoader();
         console.log('📦 bootThree() — Loading default T-Rex model...');
         
-        loader.load('/libs/Trex.glb', (gltf) => {
+        loader.load('/libs/Trex.glb', (gltf: any) => {
           try {
             console.log('📥 bootThree() — T-Rex loaded successfully');
             const mesh = gltf.scene.children[0] as THREE.Mesh;
@@ -1526,7 +1219,7 @@ export class Studio {
             console.error('❌ bootThree() — T-Rex post-processing failed:', error);
             this.spawnPoints(new THREE.SphereGeometry(1.5, 64, 64));
           }
-        }, undefined, (err) => {
+        }, undefined, (err: any) => {
           console.warn('⚠️ bootThree() — T-Rex load failed, using sphere fallback:', err);
           this.spawnPoints(new THREE.SphereGeometry(1.5, 64, 64));
         });
@@ -1575,7 +1268,7 @@ export class Studio {
       const url = URL.createObjectURL(file);
       const loader = new GLTFLoader();
       
-      loader.load(url, (gltf) => {
+      loader.load(url, (gltf: any) => {
         try {
           console.log(`📥 loadUserModel() — ${file.name} loaded successfully`);
           
@@ -1619,7 +1312,7 @@ export class Studio {
           this.updateModelStatusBadge();
           URL.revokeObjectURL(url);
         }
-      }, undefined, (err) => {
+      }, undefined, (err: any) => {
         console.error('❌ loadUserModel() — GLTF loader failed:', err);
         this.modelLoading = false;
         this.updateModelStatusBadge();
@@ -1657,301 +1350,6 @@ export class Studio {
     }
   }
 
-  // ─── PARTICLES.JS ────────────────────────────────────────────────────────────
-
-  private pjsConfig = {
-    count: 120,
-    color: '#C5A028',
-    lines: true,
-    attract: true,
-    particleSize: 3,
-    particleOpacity: 0.7,
-  };
-
-  private bootParticlesJS() {
-    try {
-      console.log('🎨 bootParticlesJS() — loading particles.js library');
-      
-      const script = document.createElement('script');
-      script.src = '/libs/particles.min.js';
-      
-      script.onload = () => {
-        try {
-          this.pjsLoaded = true;
-          console.log('📥 particles.js script loaded, spawning...');
-          this.spawnParticlesJS();
-          console.log('✅ particles.js loaded and running');
-        } catch (error) {
-          console.error('❌ bootParticlesJS() — onload handler failed:', error);
-        }
-      };
-      
-      script.onerror = (error) => {
-        console.error('❌ CRITICAL: bootParticlesJS() — Failed to load particles.js script:', error);
-      };
-      
-      document.head.appendChild(script);
-      console.log('📤 particles.js script tag injected');
-    } catch (error) {
-      console.error('❌ CRITICAL: bootParticlesJS() failed:', error);
-      // Don't rethrow - particles.js is optional background effect
-    }
-  }
-
-  private spawnParticlesJS() {
-    try {
-      if (!this.pjsLoaded) {
-        console.warn('⚠️ spawnParticlesJS() — particles.js not loaded yet');
-        return;
-      }
-      
-      const pjs = (window as any).particlesJS;
-      if (!pjs) {
-        console.error('❌ spawnParticlesJS() — particlesJS function not found on window');
-        return;
-      }
-      
-      // CRITICAL FIX: Ensure container has valid dimensions before initializing
-      const container = document.getElementById('studio-pjs');
-      if (!container) {
-        console.error('❌ spawnParticlesJS() — Container element #studio-pjs not found');
-        return;
-      }
-      
-      // IMPORTANT: Do NOT override percentage-based sizing with pixels!
-      // Just verify the container can provide dimensions
-      const computedStyle = window.getComputedStyle(container);
-      const containerWidth = parseFloat(computedStyle.width) || container.clientWidth || 1920;
-      const containerHeight = parseFloat(computedStyle.height) || container.clientHeight || 1080;
-      
-      // Force a layout recalculation to ensure styles are applied
-      void container.offsetHeight;
-      
-      // Use actual container size or fallback to defaults
-      const finalWidth = container.clientWidth || containerWidth;
-      const finalHeight = container.clientHeight || containerHeight;
-      
-      const cfg = this.pjsConfig;
-      console.log(`🎨 spawnParticlesJS() — spawning ${cfg.count} particles in ${finalWidth}x${finalHeight} container`);
-      console.log(`📐 Container computed style: width=${computedStyle.width}, height=${computedStyle.height}`);
-      console.log(`📐 Container client dimensions: width=${container.clientWidth}, height=${container.clientHeight}`);
-      
-      pjs('studio-pjs', {
-        particles: {
-          number: { value: cfg.count, density: { enable: true, value_area: 800 } },
-          color:  { value: cfg.color },
-          shape:  { type: 'circle' },
-          opacity: { value: cfg.particleOpacity, random: true, anim: { enable: true, speed: 1, opacity_min: Math.max(0.05, cfg.particleOpacity * 0.15), sync: false } },
-          size:   { value: cfg.particleSize, random: true, anim: { enable: false } },
-          line_linked: {
-            enable: cfg.lines, distance: 150,
-            color: cfg.color, opacity: 0.4, width: 1,
-          },
-          move: {
-            enable: true, speed: 2, direction: 'none', random: true,
-            straight: false, out_mode: 'out', bounce: false,
-            attract: { enable: cfg.attract, rotateX: 600, rotateY: 1200 },
-          },
-        },
-        interactivity: {
-          detect_on: 'canvas',
-          events: {
-            onhover: { enable: true, mode: 'grab' },
-            onclick:  { enable: true, mode: 'push' },
-            resize: false, // Disable auto-resize since we set explicit dimensions
-          },
-          modes: {
-            grab:   { distance: 200, line_linked: { opacity: 1 } },
-            push:   { particles_nb: 4 },
-            remove: { particles_nb: 2 },
-          },
-        },
-        retina_detect: false, // Use manual dimension management for consistent sizing
-      });
-      
-      // Use MutationObserver to immediately detect canvas creation and fix dimensions
-      // This is more reliable than setTimeout which can race with particles.js initialization
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          if (mutation.type === 'childList') {
-            for (const node of mutation.addedNodes) {
-              if (node instanceof HTMLCanvasElement && node.classList.contains('particles-js-canvas-el')) {
-                console.log('🔍 MutationObserver detected particles.js canvas creation');
-                
-                // Make canvas responsive - use 100% dimensions to match container
-                node.style.width = '100%';
-                node.style.height = '100%';
-                node.style.position = 'absolute';
-                node.style.left = '0';
-                node.style.top = '0';
-                
-                // CRITICAL: Add WebKit layer optimizations
-                Object.assign(node.style, {
-                  transform: 'translate3d(0,0,0)',
-                  willChange: 'auto',
-                  backfaceVisibility: 'hidden',
-                  // Prevent touch actions that might interfere
-                  touchAction: 'none',
-                });
-                
-                // Log container size for debugging (but don't set explicit dimensions)
-                const containerRect = container.getBoundingClientRect();
-                console.log(`✅ Particles.js canvas fixed via MutationObserver`);
-                console.log(`📐 Container rect: ${containerRect.width}x${containerRect.height}`);
-                console.log(`📐 Canvas style: width=${node.style.width}, height=${node.style.height}`);
-                console.log(`📐 Canvas attrs: width=${node.width}, height=${node.height}`);
-                
-                // Disconnect observer after fixing
-                observer.disconnect();
-                return;
-              }
-            }
-          }
-        }
-      });
-      
-      // Start observing the container for canvas creation
-      observer.observe(container, { childList: true, subtree: true });
-      
-      // Fallback: also keep setTimeout in case MutationObserver misses it
-      setTimeout(() => {
-        observer.disconnect();
-        const canvas = container.querySelector('canvas.particles-js-canvas-el') as HTMLCanvasElement | null;
-        if (canvas) {
-          // Make canvas responsive - use 100% dimensions to match container
-          canvas.style.width = '100%';
-          canvas.style.height = '100%';
-          canvas.style.position = 'absolute';
-          canvas.style.left = '0';
-          canvas.style.top = '0';
-          
-          // CRITICAL: Add WebKit layer optimizations
-          Object.assign(canvas.style, {
-            transform: 'translate3d(0,0,0)',
-            willChange: 'auto',
-            backfaceVisibility: 'hidden',
-            // Prevent touch actions that might interfere
-            touchAction: 'none',
-          });
-          
-          // REMOVED: Don't set explicit pixel dimensions - let CSS handle it
-          // const containerRect = container.getBoundingClientRect();
-          // canvas.width = containerRect.width;
-          // canvas.height = containerRect.height;
-          
-          console.log(`✅ Particles.js canvas finalized (fallback)`);
-          console.log(`📐 Canvas style: width=${canvas.style.width}, height=${canvas.style.height}`);
-        }
-      }, 500);
-      
-      console.log('✅ spawnParticlesJS() completed successfully');
-    } catch (error) {
-      console.error('❌ spawnParticlesJS() failed:', error);
-      // Don't rethrow - particle system failure shouldn't crash the app
-    }
-  }
-
-  private respawnParticlesJS(patch: Partial<typeof this.pjsConfig>) {
-    Object.assign(this.pjsConfig, patch);
-    // particles.js has no live-update API; destroy and respawn
-    if (Array.isArray((window as any).pJSDom)) {
-      const pjsWindow = (window as any).pJSDom;
-      if (pjsWindow && pjsWindow.length > 0) {
-        try { pjsWindow[pjsWindow.length - 1]?.pJS?.fn?.vendors?.destroypJS?.(); } catch (_) {}
-        (window as any).pJSDom = [];
-      }
-    }
-    this.spawnParticlesJS();
-  }
-
-  // ─── WINDOWPET SPRITES ───────────────────────────────────────────────────────
-
-  private petScale = 1;
-  private spriteVisible = true;
-
-  private bootSprite() {
-    try {
-      console.log('🐱 bootSprite() — initializing WindowPet sprite system');
-      this.switchPet(0);
-      console.log('✅ bootSprite() completed successfully');
-    } catch (error) {
-      console.error('❌ bootSprite() failed:', error);
-      // Don't rethrow - sprite layer is optional
-    }
-  }
-
-  private switchPet(index: number) {
-    try {
-      console.log(`🐱 switchPet(${index}) — switching to pet #${index}`);
-      
-      this.petCfg = PETS[index] ?? PETS[0];
-      this.petFrame = 0;
-      this.petImg = new Image();
-      this.petImg.src = this.petCfg.src;
-      
-      this.petImg.onload = () => {
-        console.log(`✅ Pet image loaded: ${this.petCfg.src}`);
-        this.petX = 200;
-        this.petY = this.spriteCanvas.height * 0.6 || 400;
-        console.log(`🐱 WindowPet: switched to ${this.petCfg.label}`);
-      };
-      
-      this.petImg.onerror = () => {
-        console.error(`❌ Failed to load pet image: ${this.petCfg.src}`);
-      };
-      
-      console.log(`📤 Loading pet image: ${this.petCfg.src}`);
-    } catch (error) {
-      console.error('❌ switchPet() failed:', error);
-      // Don't rethrow - sprite failure shouldn't crash the app
-    }
-  }
-
-  private tickSprite(dt: number) {
-    if (!this.spriteVisible || !this.petImg.complete) return;
-    const cfg = this.petCfg;
-    const fps = 9;
-    this.petAnimTimer += dt;
-    if (this.petAnimTimer >= 1 / fps) {
-      this.petAnimTimer = 0;
-      this.petFrame = (this.petFrame + 1) % cfg.walkFrames;
-    }
-
-    // walk across screen
-    const speed = 60;
-    this.petX += this.petDir * speed * dt;
-    const W = this.spriteCanvas.width;
-    const sz = cfg.frameSize * this.petScale;
-    if (this.petX > W - sz) { this.petX = W - sz; this.petDir = -1; }
-    if (this.petX < 0)       { this.petX = 0;       this.petDir = 1;  }
-    this.petY = this.spriteCanvas.height * 0.72;
-
-    // draw
-    const ctx = this.spriteCtx;
-    ctx.clearRect(0, 0, this.spriteCanvas.width, this.spriteCanvas.height);
-    const row = cfg.walkRow - 1; // 0-based
-    ctx.save();
-    if (this.petDir === -1) {
-      // flip horizontal
-      ctx.translate(this.petX + sz, this.petY);
-      ctx.scale(-1, 1);
-      ctx.drawImage(
-        this.petImg,
-        this.petFrame * cfg.frameSize, row * cfg.frameSize,
-        cfg.frameSize, cfg.frameSize,
-        0, 0, sz, sz,
-      );
-    } else {
-      ctx.drawImage(
-        this.petImg,
-        this.petFrame * cfg.frameSize, row * cfg.frameSize,
-        cfg.frameSize, cfg.frameSize,
-        this.petX, this.petY, sz, sz,
-      );
-    }
-    ctx.restore();
-  }
-
   // ─── MAIN LOOP ───────────────────────────────────────────────────────────────
 
   private loop = () => {
@@ -1978,7 +1376,7 @@ export class Studio {
       this.threeRenderer.render(this.threeScene, this.threeCamera);
 
       // WindowPet
-      this.tickSprite(dt);
+      this.sprite.tick(dt);
 
       // Studio Recorder - capture composite frame if recording is active
       if (this.studioRecorder.isRecording) {
@@ -1990,7 +1388,6 @@ export class Studio {
       this.threeRunning = false;
     }
   };
-
   // ─── RECORD SECTION (Phase 5) ───────────────────────────────────────────────────
 
   private buildRecorderSection(): HTMLElement {
@@ -2233,229 +1630,6 @@ export class Studio {
       this.recorderStatusBar.style.color = '#666';
     }
   }
-
-  // ─── PANEL HELPERS ───────────────────────────────────────────────────────────
-
-  private buildSection(title: string, children: HTMLElement[]): HTMLElement {
-    const sec = document.createElement('div');
-    Object.assign(sec.style, { marginBottom: '20px' });
-    const h = document.createElement('div');
-    h.textContent = title;
-    Object.assign(h.style, {
-      color: '#C5A028', fontSize: '13px', fontWeight: 'bold',
-      letterSpacing: '2px', marginBottom: '10px',
-      borderBottom: '1px solid rgba(197,160,40,0.3)', paddingBottom: '6px',
-      fontFamily: "'Marcellus SC', serif",
-    });
-    sec.appendChild(h);
-    children.forEach(c => sec.appendChild(c));
-    return sec;
-  }
-
-  private buildSlider(label: string, min: number, max: number, def: number, step: number, cb: (v: number) => void): HTMLElement {
-    const row = document.createElement('div');
-    Object.assign(row.style, { marginBottom: '10px' });
-    const lbl = document.createElement('div');
-    lbl.style.color = '#ccc'; lbl.style.fontSize = '13px'; lbl.style.marginBottom = '4px';
-    const valSpan = document.createElement('span');
-    valSpan.style.color = '#F4C430'; valSpan.style.fontFamily = "'VT323', monospace"; valSpan.style.fontSize = '15px'; valSpan.textContent = String(def);
-    lbl.textContent = label;
-    lbl.appendChild(valSpan);
-    const inp = document.createElement('input');
-    inp.type = 'range'; inp.min = String(min); inp.max = String(max);
-    inp.step = String(step); inp.value = String(def);
-    inp.style.cssText = 'width:100%; accent-color:#C5A028;';
-    inp.oninput = () => { const v = parseFloat(inp.value); valSpan.textContent = String(v); cb(v); };
-    row.appendChild(lbl); row.appendChild(inp);
-    return row;
-  }
-
-  private buildColorRow(label: string, def: string, cb: (c: string) => void): HTMLElement {
-    const row = document.createElement('div');
-    Object.assign(row.style, { display: 'flex', alignItems: 'center', marginBottom: '10px', gap: '10px' });
-    const lbl = document.createElement('span');
-    lbl.textContent = label; lbl.style.color = '#ccc'; lbl.style.fontSize = '13px'; lbl.style.flex = '1';
-    const inp = document.createElement('input');
-    inp.type = 'color'; inp.value = def;
-    inp.style.cssText = 'width:40px; height:28px; border:1px solid #333; border-radius:4px; cursor:pointer;';
-    inp.oninput = () => cb(inp.value);
-    row.appendChild(lbl); row.appendChild(inp);
-    return row;
-  }
-
-  private buildToggleRow(label: string, def: boolean, cb: (on: boolean) => void): HTMLElement {
-    const row = document.createElement('div');
-    Object.assign(row.style, { display: 'flex', alignItems: 'center', marginBottom: '10px', gap: '10px' });
-    const lbl = document.createElement('span');
-    lbl.textContent = label; lbl.style.color = '#ccc'; lbl.style.fontSize = '13px'; lbl.style.flex = '1';
-    const inp = document.createElement('input');
-    inp.type = 'checkbox'; inp.checked = def;
-    inp.style.accentColor = '#C5A028'; inp.style.width = '16px'; inp.style.height = '16px';
-    inp.onchange = () => cb(inp.checked);
-    row.appendChild(lbl); row.appendChild(inp);
-    return row;
-  }
-
-  private buildDropdown(label: string, options: string[], def: number, cb: (i: number) => void): HTMLElement {
-    const row = document.createElement('div');
-    row.style.marginBottom = '10px';
-    const lbl = document.createElement('div');
-    lbl.textContent = label; lbl.style.color = '#ccc'; lbl.style.fontSize = '13px'; lbl.style.marginBottom = '4px';
-    const sel = document.createElement('select');
-    sel.style.cssText = 'width:100%; padding:6px; background:#0a0805; color:#F4C430; border:1px solid #C5A028; border-radius:4px; font-family:inherit;';
-    options.forEach((o, i) => {
-      const opt = document.createElement('option');
-      opt.value = String(i); opt.textContent = o;
-      if (i === def) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.onchange = () => cb(parseInt(sel.value));
-    row.appendChild(lbl); row.appendChild(sel);
-    return row;
-  }
-
-  private buildFileRow(label: string, accept: string, cb: (f: File) => void): HTMLElement {
-    const row = document.createElement('div');
-    row.style.marginBottom = '10px';
-    const lbl = document.createElement('div');
-    lbl.textContent = label; lbl.style.color = '#ccc'; lbl.style.fontSize = '13px'; lbl.style.marginBottom = '4px';
-    const inp = document.createElement('input');
-    inp.type = 'file'; inp.accept = accept;
-    inp.style.cssText = 'width:100%; color:#fff; font-size:13px;';
-    inp.onchange = () => { if (inp.files?.[0]) cb(inp.files[0]); };
-    row.appendChild(lbl); row.appendChild(inp);
-    return row;
-  }
-
-  private buildInfo(text: string): HTMLElement {
-    const el = document.createElement('pre');
-    el.textContent = text;
-    Object.assign(el.style, {
-      color: '#999', fontSize: '12px', lineHeight: '1.6',
-      whiteSpace: 'pre-wrap', margin: '0',
-    });
-    return el;
-  }
-
-  private hexToRgb(hex: string) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return { r, g, b };
-  }
-
-  // ─── NEW HELPER METHODS FOR PHASE 2 ───────────────────────────────────────────
-
-  /** Creates a slider with a paired number input (two-way bound) */
-  private buildSliderWithNumber(
-    label: string,
-    min: number,
-    max: number,
-    def: number,
-    step: number,
-    onSliderChange: (v: number) => void,
-    onNumberChange: (v: number) => void
-  ): { container: HTMLElement; slider: HTMLInputElement; number: HTMLInputElement } {
-    const container = document.createElement('div');
-    Object.assign(container.style, { marginBottom: '10px' });
-
-    // Label row
-    const labelRow = document.createElement('div');
-    Object.assign(labelRow.style, { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' });
-    const lbl = document.createElement('span');
-    lbl.textContent = label;
-    Object.assign(lbl.style, { color: '#ccc', fontSize: '13px' });
-    const valSpan = document.createElement('span');
-    valSpan.style.color = '#F4C430';
-    valSpan.style.fontFamily = "'VT323', monospace";
-    valSpan.style.fontSize = '15px';
-    valSpan.textContent = String(def);
-    labelRow.appendChild(lbl);
-    labelRow.appendChild(valSpan);
-    container.appendChild(labelRow);
-
-    // Slider
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = String(min);
-    slider.max = String(max);
-    slider.step = String(step);
-    slider.value = String(def);
-    Object.assign(slider.style, { width: '60%', accentColor: '#C5A028', marginRight: '8px' });
-    slider.oninput = () => {
-      const v = parseFloat(slider.value);
-      valSpan.textContent = String(v);
-      onSliderChange(v);
-    };
-
-    // Number input
-    const number = document.createElement('input');
-    number.type = 'number';
-    number.min = String(min);
-    number.max = String(max);
-    number.step = String(step);
-    number.value = String(def);
-    Object.assign(number.style, {
-      width: '35%', padding: '4px', background: '#0a0805', color: '#F4C430',
-      border: '1px solid #C5A028', borderRadius: '4px', boxSizing: 'border-box',
-      fontFamily: "'VT323', monospace", fontSize: '14px',
-    });
-    number.oninput = () => {
-      let v = parseFloat(number.value);
-      v = Math.max(min, Math.min(max, v));
-      valSpan.textContent = String(v);
-      slider.value = String(v);
-      onNumberChange(v);
-    };
-
-    // Row for slider + number
-    const inputRow = document.createElement('div');
-    Object.assign(inputRow.style, { display: 'flex', alignItems: 'center' });
-    inputRow.appendChild(slider);
-    inputRow.appendChild(number);
-    container.appendChild(inputRow);
-
-    return { container, slider, number };
-  }
-
-  /** Creates a rotation slider (-180 to 180 degrees) */
-  private buildRotationSlider(label: string, min: number, max: number, def: number, cb: (v: number) => void): HTMLInputElement {
-    const row = document.createElement('div');
-    Object.assign(row.style, { marginBottom: '10px' });
-
-    const lbl = document.createElement('div');
-    Object.assign(lbl.style, { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' });
-    const lblText = document.createElement('span');
-    lblText.textContent = label;
-    Object.assign(lblText.style, { color: '#ccc', fontSize: '13px' });
-    const valSpan = document.createElement('span');
-    valSpan.style.color = '#F4C430';
-    valSpan.style.fontFamily = "'VT323', monospace";
-    valSpan.style.fontSize = '15px';
-    valSpan.textContent = String(def) + '°';
-    lbl.appendChild(lblText);
-    lbl.appendChild(valSpan);
-    row.appendChild(lbl);
-
-    const inp = document.createElement('input');
-    inp.type = 'range';
-    inp.min = String(min);
-    inp.max = String(max);
-    inp.step = '1';
-    inp.value = String(def);
-    Object.assign(inp.style, { width: '100%', accentColor: '#C5A028' });
-    inp.oninput = () => {
-      const v = parseFloat(inp.value);
-      valSpan.textContent = String(v) + '°';
-      cb(v);
-    };
-    row.appendChild(inp);
-
-    // Replace the return to also append the row before returning the input
-    // We need to modify how we use this in the left panel - let me fix that too
-    return inp;
-  }
-
   /** Capture the current target state as a CaptureSlot */
   private captureTarget() {
     if (!this.threePoints || !this.threePoints.geometry) {
@@ -2715,7 +1889,6 @@ export class Studio {
     };
     progressLoop();
   }
-
   // ─── TEXT MODE METHODS (Phase 4) ─────────────────────────────────────────────
 
   /** Update TEXT MODE UI controls when text or point density changes */
