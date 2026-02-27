@@ -10,7 +10,13 @@ export default defineConfig({
   build: {
     target: 'esnext',
     minify: 'esbuild',
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV === 'production' ? 'hidden' : true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three'],
+        },
+      },
+    },
   },
-  assetsInclude: ['**/*.wgsl'],
 });

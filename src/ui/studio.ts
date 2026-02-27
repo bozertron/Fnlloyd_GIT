@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { StudioRecorder } from '../engine/studio-recorder';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,25 @@ export class MorphController {
       this.material.uniforms.uMorphProgress.value = this.morphProgress;
     }
   }
+
+  /** Get the current interpolated positions */
+  getCurrentPositions(): Float32Array | null {
+    if (!this.geometry || !this.positionAAttr || !this.positionBAttr) {
+      return null;
+    }
+    
+    const count = this.geometry.attributes.position.count;
+    const result = new Float32Array(count * 3);
+    const posA = this.positionAAttr.array as Float32Array;
+    const posB = this.positionBAttr.array as Float32Array;
+    const t = this.morphProgress;
+    
+    for (let i = 0; i < count * 3; i++) {
+      result[i] = posA[i] + (posB[i] - posA[i]) * t;
+    }
+    
+    return result;
+  }
 }
 
 // ─── FBO Curl-Noise Vertex Shader (from libs/FBO-Particles) ───────────────────
@@ -332,6 +352,18 @@ export class Studio {
   private morphDurationInput!: HTMLInputElement;
   private morphEasingSelect!: HTMLSelectElement;
   private morphProgressBar!: HTMLElement;
+
+  // ── Studio Recorder (Phase 5)
+  private studioRecorder = new StudioRecorder();
+  private recorderFpsSelect!: HTMLSelectElement;
+  private recorderDurationInput!: HTMLInputElement;
+  private recorderNameInput!: HTMLInputElement;
+  private recorderStatusBar!: HTMLElement;
+  private recorderProgressBar!: HTMLElement;
+  private recButton!: HTMLButtonElement;
+  private pauseButton!: HTMLButtonElement;
+  private stopButton!: HTMLButtonElement;
+  private exportButton!: HTMLButtonElement;
 
   // ─── PUBLIC API ─────────────────────────────────────────────────────────────
 
@@ -505,6 +537,9 @@ export class Studio {
     // Scrollable body
     const body = document.createElement('div');
     Object.assign(body.style, { flex: '1', overflowY: 'auto', padding: '16px' });
+
+    // ── Section: RECORD (Phase 5)
+    body.appendChild(this.buildRecorderSection());
 
     // ── Section: Three.js / FBO
     body.appendChild(this.buildSection('🌀 FBO PARTICLES (Three.js)', [
@@ -1299,7 +1334,255 @@ export class Studio {
 
     // WindowPet
     this.tickSprite(dt);
+
+    // Studio Recorder - capture composite frame if recording is active
+    if (this.studioRecorder.isRecording) {
+      this.studioRecorder.captureFrame(this.threeCanvas, this.spriteCanvas);
+    }
   };
+
+  // ─── RECORD SECTION (Phase 5) ───────────────────────────────────────────────────
+
+  private buildRecorderSection(): HTMLElement {
+    const sec = document.createElement('div');
+    Object.assign(sec.style, { marginBottom: '20px' });
+    
+    const h = document.createElement('div');
+    h.textContent = '⏺ RECORD';
+    Object.assign(h.style, {
+      color: '#C5A028', fontSize: '13px', fontWeight: 'bold',
+      letterSpacing: '2px', marginBottom: '10px',
+      borderBottom: '1px solid rgba(197,160,40,0.3)', paddingBottom: '6px',
+      fontFamily: "'Marcellus SC', serif",
+    });
+    sec.appendChild(h);
+
+    const buttonRow = document.createElement('div');
+    Object.assign(buttonRow.style, { display: 'flex', gap: '6px', marginBottom: '12px' });
+
+    this.recButton = document.createElement('button');
+    this.recButton.textContent = '⏺ REC';
+    Object.assign(this.recButton.style, {
+      flex: '1', background: 'transparent', border: '2px solid #C5A028',
+      color: '#C5A028', padding: '8px', borderRadius: '4px',
+      cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
+      fontFamily: "'VT323', monospace",
+    });
+    this.recButton.onclick = () => this.handleRecClick();
+    buttonRow.appendChild(this.recButton);
+
+    this.pauseButton = document.createElement('button');
+    this.pauseButton.textContent = '⏸ PAUSE';
+    Object.assign(this.pauseButton.style, {
+      flex: '1', background: 'transparent', border: '1px solid #666',
+      color: '#666', padding: '8px', borderRadius: '4px',
+      cursor: 'not-allowed', fontSize: '12px',
+      fontFamily: "'VT323', monospace",
+    });
+    this.pauseButton.disabled = true;
+    buttonRow.appendChild(this.pauseButton);
+
+    this.stopButton = document.createElement('button');
+    this.stopButton.textContent = '⏹ STOP';
+    Object.assign(this.stopButton.style, {
+      flex: '1', background: 'transparent', border: '1px solid #666',
+      color: '#666', padding: '8px', borderRadius: '4px',
+      cursor: 'not-allowed', fontSize: '12px',
+      fontFamily: "'VT323', monospace",
+    });
+    this.stopButton.disabled = true;
+    buttonRow.appendChild(this.stopButton);
+
+    this.exportButton = document.createElement('button');
+    this.exportButton.textContent = '💾 ZIP';
+    Object.assign(this.exportButton.style, {
+      flex: '1', background: 'transparent', border: '1px solid #666',
+      color: '#666', padding: '8px', borderRadius: '4px',
+      cursor: 'not-allowed', fontSize: '12px',
+      fontFamily: "'VT323', monospace",
+    });
+    this.exportButton.disabled = true;
+    buttonRow.appendChild(this.exportButton);
+    sec.appendChild(buttonRow);
+
+    const optionsRow = document.createElement('div');
+    Object.assign(optionsRow.style, { display: 'flex', gap: '8px', marginBottom: '12px' });
+
+    const fpsContainer = document.createElement('div');
+    Object.assign(fpsContainer.style, { flex: '1' });
+    const fpsLabel = document.createElement('div');
+    fpsLabel.textContent = 'FPS';
+    Object.assign(fpsLabel.style, { color: '#999', fontSize: '11px', marginBottom: '4px' });
+    this.recorderFpsSelect = document.createElement('select');
+    Object.assign(this.recorderFpsSelect.style, {
+      width: '100%', padding: '4px', background: '#0a0805', color: '#F4C430',
+      border: '1px solid #C5A028', borderRadius: '4px', fontSize: '13px',
+    });
+    [12, 24, 30, 60].forEach(fps => {
+      const opt = document.createElement('option');
+      opt.value = String(fps);
+      opt.textContent = String(fps);
+      if (fps === 24) opt.selected = true;
+      this.recorderFpsSelect.appendChild(opt);
+    });
+    fpsContainer.appendChild(fpsLabel);
+    fpsContainer.appendChild(this.recorderFpsSelect);
+    optionsRow.appendChild(fpsContainer);
+
+    const durationContainer = document.createElement('div');
+    Object.assign(durationContainer.style, { flex: '1' });
+    const durationLabel = document.createElement('div');
+    durationLabel.textContent = 'SEC';
+    Object.assign(durationLabel.style, { color: '#999', fontSize: '11px', marginBottom: '4px' });
+    this.recorderDurationInput = document.createElement('input');
+    this.recorderDurationInput.type = 'number';
+    this.recorderDurationInput.min = '1';
+    this.recorderDurationInput.max = '30';
+    this.recorderDurationInput.value = '5';
+    Object.assign(this.recorderDurationInput.style, {
+      width: '100%', padding: '4px', background: '#0a0805', color: '#F4C430',
+      border: '1px solid #C5A028', borderRadius: '4px', fontSize: '13px',
+      boxSizing: 'border-box',
+    });
+    durationContainer.appendChild(durationLabel);
+    durationContainer.appendChild(this.recorderDurationInput);
+    optionsRow.appendChild(durationContainer);
+
+    const nameContainer = document.createElement('div');
+    Object.assign(nameContainer.style, { flex: '2' });
+    const nameLabel = document.createElement('div');
+    nameLabel.textContent = 'NAME';
+    Object.assign(nameLabel.style, { color: '#999', fontSize: '11px', marginBottom: '4px' });
+    this.recorderNameInput = document.createElement('input');
+    this.recorderNameInput.type = 'text';
+    this.recorderNameInput.value = 'fnlloyd-animation';
+    Object.assign(this.recorderNameInput.style, {
+      width: '100%', padding: '4px', background: '#0a0805', color: '#F4C430',
+      border: '1px solid #C5A028', borderRadius: '4px', fontSize: '13px',
+      boxSizing: 'border-box',
+    });
+    nameContainer.appendChild(nameLabel);
+    nameContainer.appendChild(this.recorderNameInput);
+    optionsRow.appendChild(nameContainer);
+    sec.appendChild(optionsRow);
+
+    this.recorderStatusBar = document.createElement('div');
+    Object.assign(this.recorderStatusBar.style, {
+      color: '#666', fontSize: '14px', fontFamily: "'VT323', monospace",
+      marginBottom: '8px', padding: '4px 8px', background: 'rgba(0,0,0,0.3)',
+      borderRadius: '4px',
+    });
+    this.recorderStatusBar.textContent = 'FRAME: 000 / 000 — 0.0 MB';
+    sec.appendChild(this.recorderStatusBar);
+
+    this.recorderProgressBar = document.createElement('div');
+    Object.assign(this.recorderProgressBar.style, {
+      height: '4px', background: 'rgba(197,160,40,0.2)', borderRadius: '2px',
+      overflow: 'hidden',
+    });
+    const progressFill = document.createElement('div');
+    Object.assign(progressFill.style, {
+      height: '100%', width: '0%', background: '#C5A028',
+      transition: 'width 0.1s linear',
+    });
+    this.recorderProgressBar.appendChild(progressFill);
+    sec.appendChild(this.recorderProgressBar);
+
+    this.studioRecorder.onProgress = (progress) => {
+      this.updateRecorderUI(progress);
+    };
+
+    this.studioRecorder.onComplete = (frames) => {
+      console.log(`Recording complete: ${frames.length} frames`);
+      this.updateRecorderButtons(false);
+    };
+
+    return sec;
+  }
+
+  private handleRecClick(): void {
+    if (this.studioRecorder.isRecording) return;
+    const fps = parseInt(this.recorderFpsSelect.value);
+    const duration = Math.max(1, Math.min(30, parseInt(this.recorderDurationInput.value) || 5));
+    const name = this.recorderNameInput.value.trim() || 'fnlloyd-animation';
+    this.studioRecorder.start(fps, duration, name);
+    this.updateRecorderButtons(true);
+  }
+
+  private handleStopClick(): void {
+    this.studioRecorder.stop();
+    this.updateRecorderButtons(false);
+  }
+
+  private handlePauseClick(): void {
+    this.studioRecorder.togglePause();
+    const isPaused = this.studioRecorder.isPaused;
+    this.pauseButton.textContent = isPaused ? '▶ RESUME' : '⏸ PAUSE';
+  }
+
+  private handleExportClick(): void {
+    const name = this.recorderNameInput.value.trim() || 'fnlloyd-animation';
+    this.studioRecorder.downloadZip(name);
+  }
+
+  private updateRecorderUI(progress: { currentFrame: number; totalFrames: number; estimatedSizeMB: number }): void {
+    const frame = String(progress.currentFrame).padStart(3, '0');
+    const total = String(progress.totalFrames).padStart(3, '0');
+    const mb = progress.estimatedSizeMB.toFixed(1);
+    this.recorderStatusBar.textContent = `FRAME: ${frame} / ${total} — ${mb} MB`;
+    this.recorderStatusBar.style.color = '#FFD700';
+    const pct = (progress.currentFrame / progress.totalFrames) * 100;
+    const fill = this.recorderProgressBar.firstElementChild as HTMLElement;
+    if (fill) fill.style.width = `${pct}%`;
+  }
+
+  private updateRecorderButtons(recording: boolean): void {
+    if (recording) {
+      this.recButton.textContent = '⏺ REC';
+      this.recButton.style.background = '#C5A028';
+      this.recButton.style.color = '#050505';
+      this.pauseButton.disabled = false;
+      this.pauseButton.style.border = '1px solid #C5A028';
+      this.pauseButton.style.color = '#C5A028';
+      this.pauseButton.style.cursor = 'pointer';
+      this.pauseButton.onclick = () => this.handlePauseClick();
+      this.stopButton.disabled = false;
+      this.stopButton.style.border = '1px solid #ff3366';
+      this.stopButton.style.color = '#ff3366';
+      this.stopButton.style.cursor = 'pointer';
+      this.stopButton.onclick = () => this.handleStopClick();
+      this.recButton.disabled = true;
+      this.recButton.style.cursor = 'not-allowed';
+      this.recButton.style.borderColor = '#666';
+      this.exportButton.disabled = true;
+    } else {
+      this.recButton.textContent = '⏺ REC';
+      this.recButton.style.background = 'transparent';
+      this.recButton.style.color = '#C5A028';
+      this.recButton.style.border = '2px solid #C5A028';
+      this.recButton.disabled = false;
+      this.recButton.style.cursor = 'pointer';
+      this.pauseButton.disabled = true;
+      this.pauseButton.textContent = '⏸ PAUSE';
+      this.pauseButton.style.border = '1px solid #666';
+      this.pauseButton.style.color = '#666';
+      this.pauseButton.style.cursor = 'not-allowed';
+      this.pauseButton.onclick = null;
+      this.stopButton.disabled = true;
+      this.stopButton.style.border = '1px solid #666';
+      this.stopButton.style.color = '#666';
+      this.stopButton.style.cursor = 'not-allowed';
+      this.stopButton.onclick = null;
+      if (this.studioRecorder.frameCount > 0) {
+        this.exportButton.disabled = false;
+        this.exportButton.style.border = '1px solid #C5A028';
+        this.exportButton.style.color = '#C5A028';
+        this.exportButton.style.cursor = 'pointer';
+        this.exportButton.onclick = () => this.handleExportClick();
+      }
+      this.recorderStatusBar.style.color = '#666';
+    }
+  }
 
   // ─── PANEL HELPERS ───────────────────────────────────────────────────────────
 
