@@ -4,9 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>!Fnlloyd - Defend The Earth</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poiret+One&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=VT323&display=swap" rel="stylesheet">
+    <style>
+      @font-face {
+        font-family: 'Poiret One';
+        src: url('/fonts/PoiretOne-Regular.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
+        :root {
+          --bg-obsidian: #050505;
+          --gold-dark:   #C5A028;
+          --gold-light:  #F4C430;
+          --teal:        #00E5E5;
+          --danger:      #ff3366;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; }
         body {
             background-color: #050714;
@@ -19,7 +35,7 @@
             position: relative;
             width: 1920px; height: 1080px;
             border-radius: 12px;
-            box-shadow: 0 0 60px rgba(107, 92, 231, 0.4), inset 0 0 30px #00d4ff;
+            box-shadow: 0 0 60px rgba(197,160,40,0.4), inset 0 0 30px #C5A028;
             background: #0a0e27;
             overflow: hidden;
             max-width: 100vw; max-height: 100vh;
@@ -47,12 +63,12 @@
             position: absolute; top: 20px; left: 30px; right: 30px;
             display: flex; justify-content: space-between; align-items: flex-start;
             font-family: 'Poiret One', cursive; font-weight: 900; font-size: 28px;
-            color: #E0A0FF;
-            text-shadow: 0 0 15px #00d4ff; z-index: 10; pointer-events: none;
+            color: #F4C430;
+            text-shadow: 0 0 15px #C5A028; z-index: 10; pointer-events: none;
             background: rgba(10, 14, 39, 0.7);
             padding: 15px 25px;
             border-radius: 15px;
-            border: 1px solid rgba(0, 212, 255, 0.3);
+            border: 1px solid rgba(197, 160, 40, 0.3);
             backdrop-filter: blur(5px);
         }
         .hud-left, .hud-right { display: flex; flex-direction: column; gap: 4px; }
@@ -67,7 +83,7 @@
         }
         #comboDisplay.active { opacity: 1; transform: scale(1.2); }
 
-        #levelDisplay { font-size: 22px; color: #6B5CE7; letter-spacing: 4px; }
+        #levelDisplay { font-size: 22px; color: #C5A028; letter-spacing: 4px; }
 
         .screen {
             position: absolute; inset: 0;
@@ -78,18 +94,18 @@
 
         .logo { line-height: 1; margin-bottom: 30px; text-align: center; }
         .logo span { text-shadow: 0 0 20px currentColor; font-weight: 900; }
-        .logo .l1 { font-size: 160px; color: #00d4ff; -webkit-text-stroke: 2px #fff; }
+        .logo .l1 { font-size: 160px; color: #C5A028; -webkit-text-stroke: 2px #fff; }
         .logo .l2 { font-size: 180px; color: #ffc107; -webkit-text-stroke: 3px #fff; }
-        .logo .l3 { font-size: 100px; color: #E0A0FF; letter-spacing: 14px; }
+        .logo .l3 { font-size: 100px; color: #F4C430; letter-spacing: 14px; }
 
         button {
-            background: transparent; border: 2px solid #00d4ff; color: #00d4ff;
+            background: transparent; border: 2px solid #C5A028; color: #C5A028;
             padding: 15px 40px; font-size: 24px; font-family: 'Poiret One', cursive; font-weight: bold;
-            border-radius: 30px; cursor: pointer; text-shadow: 0 0 10px #00d4ff;
-            box-shadow: 0 0 15px rgba(0,212,255,0.4), inset 0 0 15px rgba(0,212,255,0.4);
+            border-radius: 30px; cursor: pointer; text-shadow: 0 0 10px #C5A028;
+            box-shadow: 0 0 15px rgba(197,160,40,0.4), inset 0 0 15px rgba(197,160,40,0.4);
             transition: all 0.2s;
         }
-        button:hover { background: #00d4ff; color: #0a0e27; box-shadow: 0 0 30px #00d4ff; transform: scale(1.1); }
+        button:hover { background: #C5A028; color: #050505; box-shadow: 0 0 30px #C5A028; transform: scale(1.1); }
 
         #phaseAlert {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -105,7 +121,7 @@
         }
 
         .final-score { font-size: 40px; color: #ffc107; margin-bottom: 10px; text-shadow: 0 0 15px #ffc107; }
-        .final-level { font-size: 28px; color: #6B5CE7; margin-bottom: 30px; letter-spacing: 4px; }
+        .final-level { font-size: 28px; color: #C5A028; margin-bottom: 30px; letter-spacing: 4px; }
 
         #fnlloydQuip {
             position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
@@ -144,8 +160,9 @@
 
     <div class="screen" id="startScreen">
         <div class="logo"><span class="l1">!</span><span class="l2">F</span><span class="l3">n l l o y d</span></div>
-        <p style="margin-bottom: 30px; font-size: 18px; color: #00d4ff; letter-spacing: 2px;">DEFEND THE EARTH</p>
+        <p style="margin-bottom: 30px; font-size: 18px; color: #C5A028; letter-spacing: 2px;">DEFEND THE EARTH</p>
         <button id="startBtn">INSERT COIN</button>
+        <button id="settingsBtn" style="margin-top: 20px; font-size: 18px; padding: 12px 30px; border-color: #C5A028; color: #C5A028; text-shadow: 0 0 10px #C5A028; box-shadow: 0 0 15px rgba(197,160,40,0.4), inset 0 0 15px rgba(197,160,40,0.2);">⚙ SETTINGS &amp; STUDIO</button>
     </div>
 
     <div class="screen hidden" id="gameOverScreen">
