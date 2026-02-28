@@ -141,8 +141,8 @@ export class Studio {
       if (!this.booted) {
         this.booted = true;
         this.bootThree();
-        // this.particles.boot();  // DISABLED for bring-up
-        // this.sprite.boot();  // DISABLED for bring-up
+        this.particles.boot();
+        this.sprite.boot();
       }
       this.handleResize();
       this.isVisible = true;
@@ -188,36 +188,34 @@ export class Studio {
         flex: '1', position: 'relative', overflow: 'hidden',
       });
 
-      // ── LAYER BRING-UP: Start with only Three.js, add others one at a time ──
-
-      // Layer 0: particles.js div (OFF — bring-up step 2)
+      // Layer 0: particles.js div
       this.pjsDiv = document.createElement('div');
       this.pjsDiv.id = 'studio-pjs';
       Object.assign(this.pjsDiv.style, {
         position: 'absolute', inset: '0', zIndex: '0',
       });
-      // viewport.appendChild(this.pjsDiv);  // DISABLED for bring-up
+      viewport.appendChild(this.pjsDiv);
 
-      // Layer 1: Three.js WebGL canvas — THE ONLY ACTIVE LAYER
+      // Layer 1: Three.js WebGL canvas
       this.threeCanvas = document.createElement('canvas');
       Object.assign(this.threeCanvas.style, {
         position: 'absolute', inset: '0',
         width: '100%', height: '100%',
-        pointerEvents: 'all',
+        zIndex: '1', pointerEvents: 'all',
       });
       viewport.appendChild(this.threeCanvas);
 
-      // Layer 2: 2D sprite canvas (OFF — bring-up step 3)
+      // Layer 2: 2D sprite canvas
       this.spriteCanvas = document.createElement('canvas');
       Object.assign(this.spriteCanvas.style, {
         position: 'absolute', inset: '0',
         width: '100%', height: '100%',
         zIndex: '2', pointerEvents: 'none',
       });
-      // viewport.appendChild(this.spriteCanvas);  // DISABLED for bring-up
+      viewport.appendChild(this.spriteCanvas);
       this.spriteCtx = this.spriteCanvas.getContext('2d')!;
 
-      // Layer 3: Scanlines (OFF — bring-up step 4)
+      // Layer 3: Scanlines
       const scanlines = document.createElement('div');
       Object.assign(scanlines.style, {
         position: 'absolute', inset: '0', zIndex: '3',
@@ -226,7 +224,7 @@ export class Studio {
         background: 'linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%)',
         backgroundSize: '100% 4px',
       });
-      // viewport.appendChild(scanlines);  // DISABLED for bring-up
+      viewport.appendChild(scanlines);
 
       this.overlay.appendChild(viewport);
 
@@ -1277,8 +1275,8 @@ export class Studio {
       
       this.threeRenderer.render(this.threeScene, this.threeCamera);
 
-      // WindowPet (DISABLED for bring-up)
-      // this.sprite.tick(dt);
+      // WindowPet
+      this.sprite.tick(dt);
 
       // Studio Recorder - capture composite frame if recording is active
       if (this.studioRecorder.isRecording) {
