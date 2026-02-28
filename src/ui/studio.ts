@@ -144,6 +144,11 @@ export class Studio {
         this.particles.boot();
         this.sprite.boot();
       }
+      // Reset panels to expanded — collapsed state hides toggle tabs too
+      this.applyLeftPanelState(false);
+      this.leftPanelCollapsed = false;
+      this.applyRightPanelState(false);
+      this.rightPanelCollapsed = false;
       this.handleResize();
       this.isVisible = true;
       this.threeRunning = true;
