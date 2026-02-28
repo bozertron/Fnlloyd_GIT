@@ -139,10 +139,16 @@ export class Studio {
   show() {
     try {
       this.overlay.style.display = 'flex';
+      // Force WebKit to layout the newly-visible overlay before we measure
+      void this.overlay.offsetHeight;
       this.isVisible = true;
       this.threeRunning = true;
-      // Resize NOW — init() ran while overlay was display:none (0x0 dimensions)
       this.handleResize();
+      // Force the WebGL canvas to repaint — WebKit/Tauri compositor bug
+      this.threeRenderer.setSize(
+        this.threeCanvas.parentElement!.clientWidth,
+        this.threeCanvas.parentElement!.clientHeight,
+      );
       this.clock.start();
       this.loop();
     } catch (error) {
