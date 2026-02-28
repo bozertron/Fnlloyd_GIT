@@ -138,13 +138,13 @@ export class Studio {
 
   show() {
     try {
-      console.log('🎬 Studio.show() — activating overlay');
       this.overlay.style.display = 'flex';
       this.isVisible = true;
       this.threeRunning = true;
+      // Resize NOW — init() ran while overlay was display:none (0x0 dimensions)
+      this.handleResize();
       this.clock.start();
       this.loop();
-      console.log('✅ Studio.show() — running');
     } catch (error) {
       console.error('❌ Studio.show() failed:', error);
     }
