@@ -231,9 +231,7 @@ export class Studio {
       });
       viewport.appendChild(scanlines);
 
-      this.overlay.appendChild(viewport);
-
-      // ── Left panel (340px)
+      // ── Left panel (340px) — must be FIRST child so flexbox puts it on the left
       try {
         const leftPanel = this.buildLeftPanel();
         this.overlay.appendChild(leftPanel);
@@ -241,6 +239,8 @@ export class Studio {
         console.error('❌ Left panel creation failed:', error);
         throw error;
       }
+
+      this.overlay.appendChild(viewport);
 
       // ── Controls panel (right, 340px)
       try {
@@ -408,27 +408,21 @@ export class Studio {
 
     panel.appendChild(body);
     
-    // Toggle tab for right panel - use ABSOLUTE positioning (not fixed!) 
-    // because it's inside a transformed parent
+    // Toggle tab for right panel — position:fixed so it escapes overflow:hidden
     const rightTab = document.createElement('div');
     rightTab.id = 'studio-right-tab';
-    rightTab.textContent = '◀';
+    rightTab.textContent = '▶';
     Object.assign(rightTab.style, {
-      position: 'absolute', right: '-20px', top: '50%', transform: 'translateY(-50%)',
+      position: 'fixed', right: '340px', top: '50%', transform: 'translateY(-50%)',
       width: '20px', height: '60px', background: '#C5A028', color: '#050505',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       cursor: 'pointer', fontSize: '14px', writingMode: 'vertical-rl',
       borderRadius: '4px 0 0 4px', zIndex: '10010',
+      transition: 'right 0.25s ease',
     });
     rightTab.onclick = () => this.toggleRightPanel();
     panel.appendChild(rightTab);
     this.rightPanel = panel;
-    this.rightPanelCollapsed = localStorage.getItem('studio-right-panel') === 'collapsed';
-    if (this.rightPanelCollapsed) {
-      this.applyRightPanelState(true);
-      rightTab.style.right = '0px';
-      rightTab.textContent = '▶';
-    }
     
     return panel;
   }
@@ -893,83 +887,53 @@ export class Studio {
 
     panel.appendChild(body);
 
-    // Toggle tab for left panel - use FIXED positioning so it stays visible when panel is collapsed
+    // Toggle tab for left panel — position:fixed so it escapes overflow:hidden
     const leftTab = document.createElement('div');
     leftTab.id = 'studio-left-tab';
-    leftTab.textContent = '▶';
+    leftTab.textContent = '◀';
     Object.assign(leftTab.style, {
       position: 'fixed', left: '340px', top: '50%', transform: 'translateY(-50%)',
       width: '20px', height: '60px', background: '#C5A028', color: '#050505',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       cursor: 'pointer', fontSize: '14px', writingMode: 'vertical-rl',
       borderRadius: '0 4px 4px 0', zIndex: '10010',
+      transition: 'left 0.25s ease',
     });
     leftTab.onclick = () => this.toggleLeftPanel();
     panel.appendChild(leftTab);
     this.leftPanel = panel;
-    this.leftPanelCollapsed = localStorage.getItem('studio-left-panel') === 'collapsed';
-    if (this.leftPanelCollapsed) {
-      this.applyLeftPanelState(true);
-      leftTab.style.left = '0px';
-      leftTab.textContent = '◀';
-    }
 
     return panel;
   }
   private toggleLeftPanel() {
-    try {
-      console.log('🔄 toggleLeftPanel() — toggling left panel');
-      this.leftPanelCollapsed = !this.leftPanelCollapsed;
-      this.applyLeftPanelState(this.leftPanelCollapsed);
-      localStorage.setItem('studio-left-panel', this.leftPanelCollapsed ? 'collapsed' : 'expanded');
-      
-      // Update tab - using fixed positioning to stay visible
-      const tab = document.getElementById('studio-left-tab') as HTMLElement;
-      if (tab) {
-        tab.textContent = this.leftPanelCollapsed ? '▶' : '◀';
-        tab.style.left = this.leftPanelCollapsed ? '0px' : '340px';
-      }
-      setTimeout(() => this.handleResize(), 260);
-      console.log(`✅ toggleLeftPanel() — ${this.leftPanelCollapsed ? 'collapsed' : 'expanded'}`);
-    } catch (error) {
-      console.error('❌ toggleLeftPanel() failed:', error);
-      // Don't rethrow - UI toggle failure shouldn't crash the app
-    }
+    this.leftPanelCollapsed = !this.leftPanelCollapsed;
+    this.applyLeftPanelState(this.leftPanelCollapsed);
+    localStorage.setItem('studio-left-panel', this.leftPanelCollapsed ? 'collapsed' : 'expanded');
+    setTimeout(() => this.handleResize(), 260);
   }
 
   private toggleRightPanel() {
-    try {
-      console.log('🔄 toggleRightPanel() — toggling right panel');
-      this.rightPanelCollapsed = !this.rightPanelCollapsed;
-      this.applyRightPanelState(this.rightPanelCollapsed);
-      localStorage.setItem('studio-right-panel', this.rightPanelCollapsed ? 'collapsed' : 'expanded');
-      
-      // Update tab - using fixed positioning to stay visible
-      const tab = document.getElementById('studio-right-tab') as HTMLElement;
-      if (tab) {
-        tab.textContent = this.rightPanelCollapsed ? '▶' : '◀';
-        tab.style.right = this.rightPanelCollapsed ? '0px' : '340px';
-      }
-      setTimeout(() => this.handleResize(), 260);
-      console.log(`✅ toggleRightPanel() — ${this.rightPanelCollapsed ? 'collapsed' : 'expanded'}`);
-    } catch (error) {
-      console.error('❌ toggleRightPanel() failed:', error);
-      // Don't rethrow - UI toggle failure shouldn't crash the app
-    }
+    this.rightPanelCollapsed = !this.rightPanelCollapsed;
+    this.applyRightPanelState(this.rightPanelCollapsed);
+    localStorage.setItem('studio-right-panel', this.rightPanelCollapsed ? 'collapsed' : 'expanded');
+    setTimeout(() => this.handleResize(), 260);
   }
 
   private applyLeftPanelState(collapsed: boolean) {
     try {
       if (collapsed) {
         this.leftPanel.style.width = '0';
-        this.leftPanel.style.opacity = '0';
         this.leftPanel.style.overflow = 'hidden';
       } else {
         this.leftPanel.style.width = '340px';
-        this.leftPanel.style.opacity = '1';
         this.leftPanel.style.overflow = '';
       }
-      console.log(`📐 applyLeftPanelState() — ${collapsed ? 'collapsed' : 'expanded'}`);
+      // Update tab arrow + position (single source of truth)
+      const tab = document.getElementById('studio-left-tab') as HTMLElement;
+      if (tab) {
+        tab.textContent = collapsed ? '▶' : '◀';
+        tab.style.left = collapsed ? '0px' : '340px';
+      }
     } catch (error) {
       console.error('❌ applyLeftPanelState() failed:', error);
     }
@@ -979,14 +943,17 @@ export class Studio {
     try {
       if (collapsed) {
         this.rightPanel.style.width = '0';
-        this.rightPanel.style.opacity = '0';
         this.rightPanel.style.overflow = 'hidden';
       } else {
         this.rightPanel.style.width = '340px';
-        this.rightPanel.style.opacity = '1';
         this.rightPanel.style.overflow = '';
       }
-      console.log(`📐 applyRightPanelState() — ${collapsed ? 'collapsed' : 'expanded'}`);
+      // Update tab arrow + position (single source of truth)
+      const tab = document.getElementById('studio-right-tab') as HTMLElement;
+      if (tab) {
+        tab.textContent = collapsed ? '◀' : '▶';
+        tab.style.right = collapsed ? '0px' : '340px';
+      }
     } catch (error) {
       console.error('❌ applyRightPanelState() failed:', error);
     }
