@@ -114,23 +114,19 @@ export class Studio {
 
   // ─── PUBLIC API ─────────────────────────────────────────────────────────────
 
+  private booted = false;
+
   init() {
     try {
-      console.log('🎬 Studio.init() — starting initialization');
       this.buildDOM();
-      this.bootThree();
       // BRING-UP: particles and sprite disabled until Three.js layer confirmed working
       this.particles = new StudioParticles(this.pjsDiv);
-      // this.particles.boot();  // DISABLED for bring-up
       this.sprite = new StudioSprite(this.spriteCanvas, this.spriteCtx);
-      // this.sprite.boot();  // DISABLED for bring-up
-      
+
       // Load default font for TEXT MODE
       this.glyphSampler.loadFont('/fonts/VT323-Regular.ttf').catch(err => {
-        console.warn('⚠️ Studio.init() — Could not load default VT323 font:', err);
+        console.warn('⚠️ Could not load default VT323 font:', err);
       });
-      
-      console.log('✅ Studio initialized — all engines standing by');
     } catch (error) {
       console.error('❌ CRITICAL: Studio.init() failed:', error);
     }
@@ -138,17 +134,19 @@ export class Studio {
 
   show() {
     try {
+      // Make overlay visible FIRST so the canvas has real dimensions
       this.overlay.style.display = 'flex';
-      // Force WebKit to layout the newly-visible overlay before we measure
-      void this.overlay.offsetHeight;
+      // Boot Three.js on first show — WebGL context must be created
+      // while the canvas is visible, or WebKit won't paint it
+      if (!this.booted) {
+        this.booted = true;
+        this.bootThree();
+        // this.particles.boot();  // DISABLED for bring-up
+        // this.sprite.boot();  // DISABLED for bring-up
+      }
+      this.handleResize();
       this.isVisible = true;
       this.threeRunning = true;
-      this.handleResize();
-      // Force the WebGL canvas to repaint — WebKit/Tauri compositor bug
-      this.threeRenderer.setSize(
-        this.threeCanvas.parentElement!.clientWidth,
-        this.threeCanvas.parentElement!.clientHeight,
-      );
       this.clock.start();
       this.loop();
     } catch (error) {
