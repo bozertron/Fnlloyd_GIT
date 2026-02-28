@@ -119,10 +119,11 @@ export class Studio {
       console.log('🎬 Studio.init() — starting initialization');
       this.buildDOM();
       this.bootThree();
+      // BRING-UP: particles and sprite disabled until Three.js layer confirmed working
       this.particles = new StudioParticles(this.pjsDiv);
-      this.particles.boot();
+      // this.particles.boot();  // DISABLED for bring-up
       this.sprite = new StudioSprite(this.spriteCanvas, this.spriteCtx);
-      this.sprite.boot();
+      // this.sprite.boot();  // DISABLED for bring-up
       
       // Load default font for TEXT MODE
       this.glyphSampler.loadFont('/fonts/VT323-Regular.ttf').catch(err => {
@@ -183,34 +184,36 @@ export class Studio {
         flex: '1', position: 'relative', overflow: 'hidden',
       });
 
-      // Layer 0: particles.js div
+      // ── LAYER BRING-UP: Start with only Three.js, add others one at a time ──
+
+      // Layer 0: particles.js div (OFF — bring-up step 2)
       this.pjsDiv = document.createElement('div');
       this.pjsDiv.id = 'studio-pjs';
       Object.assign(this.pjsDiv.style, {
         position: 'absolute', inset: '0', zIndex: '0',
       });
-      viewport.appendChild(this.pjsDiv);
+      // viewport.appendChild(this.pjsDiv);  // DISABLED for bring-up
 
-      // Layer 1: Three.js WebGL canvas
+      // Layer 1: Three.js WebGL canvas — THE ONLY ACTIVE LAYER
       this.threeCanvas = document.createElement('canvas');
       Object.assign(this.threeCanvas.style, {
         position: 'absolute', inset: '0',
         width: '100%', height: '100%',
-        zIndex: '1', pointerEvents: 'all',
+        pointerEvents: 'all',
       });
       viewport.appendChild(this.threeCanvas);
 
-      // Layer 2: 2D sprite canvas
+      // Layer 2: 2D sprite canvas (OFF — bring-up step 3)
       this.spriteCanvas = document.createElement('canvas');
       Object.assign(this.spriteCanvas.style, {
         position: 'absolute', inset: '0',
         width: '100%', height: '100%',
         zIndex: '2', pointerEvents: 'none',
       });
-      viewport.appendChild(this.spriteCanvas);
+      // viewport.appendChild(this.spriteCanvas);  // DISABLED for bring-up
       this.spriteCtx = this.spriteCanvas.getContext('2d')!;
 
-      // Layer 3: Scanlines
+      // Layer 3: Scanlines (OFF — bring-up step 4)
       const scanlines = document.createElement('div');
       Object.assign(scanlines.style, {
         position: 'absolute', inset: '0', zIndex: '3',
@@ -219,7 +222,7 @@ export class Studio {
         background: 'linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%)',
         backgroundSize: '100% 4px',
       });
-      viewport.appendChild(scanlines);
+      // viewport.appendChild(scanlines);  // DISABLED for bring-up
 
       this.overlay.appendChild(viewport);
 
@@ -1270,8 +1273,8 @@ export class Studio {
       
       this.threeRenderer.render(this.threeScene, this.threeCamera);
 
-      // WindowPet
-      this.sprite.tick(dt);
+      // WindowPet (DISABLED for bring-up)
+      // this.sprite.tick(dt);
 
       // Studio Recorder - capture composite frame if recording is active
       if (this.studioRecorder.isRecording) {
